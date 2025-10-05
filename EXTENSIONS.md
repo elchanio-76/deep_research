@@ -2,7 +2,9 @@
 
 This document outlines potential extensions to enhance the deep research assistant using the OpenAI Agents SDK.
 
-## 1. Citation & Fact-Checking Agent
+## 1. Citation & Fact-Checking Agent 
+*Implemented, multiple tools with adaptive strategies and intelligent scoring*  
+*model below is obsolete, check README.md for actual implementation details*
 
 ### Overview
 Validates claims in generated reports by cross-referencing sources and adds proper academic citations.
@@ -66,6 +68,7 @@ Maintains persistent storage of research findings and identifies connections bet
 - Database setup for persistent storage
 
 ## 4. Interactive Q&A Agent
+*Implemented*
 
 ### Overview
 Provides conversational interface for follow-up questions about completed research reports.
