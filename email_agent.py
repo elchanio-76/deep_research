@@ -3,9 +3,9 @@ from typing import Dict
 
 import sendgrid
 from sendgrid.helpers.mail import Email, Mail, Content, To
-from strands import Agent, tool
+from agents import Agent, function_tool
 
-@tool
+@function_tool
 def send_email(subject: str, html_body: str) -> Dict[str, str]:
     """ Send an email with the given subject and HTML body """
     sg = sendgrid.SendGridAPIClient(api_key=os.environ.get('SENDGRID_API_KEY'))
@@ -23,8 +23,7 @@ report converted into clean, well presented HTML with an appropriate subject lin
 
 email_agent = Agent(
     name="Email agent",
-    description="An agent that can send emails.",
-    system_prompt=INSTRUCTIONS,
+    instructions=INSTRUCTIONS,
     tools=[send_email],
-    model="eu.amazon.nova-lite-v1:0",
+    model="gpt-4o-mini",
 )

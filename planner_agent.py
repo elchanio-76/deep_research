@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from strands import Agent
+from agents import Agent
 
 class WebSearchItem(BaseModel):
     reason: str = Field(description="Your reasoning for why this search is important to the query.")
@@ -11,16 +11,15 @@ class WebSearchPlan(BaseModel):
 
 class PlannerAgent(Agent):
     # Initialize agent with a model, instructions and number of searches
-    def __init__(self, model: str = "eu.amazon.nova-pro-v1:0", num_searches: int = 5):
+    def __init__(self, model: str, num_searches: int = 5):
         instructions = f"You are a helpful research assistant. Given a query, come up with a set of web searches \
 to perform to best answer the query. Output {num_searches} terms to query for."
         
         super().__init__(
             name="PlannerAgent",
-            system_prompt=instructions,
+            instructions=instructions,
             model=model,
             output_type=WebSearchPlan,
         )
         self.num_searches = num_searches
         self.model = model
-

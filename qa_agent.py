@@ -1,5 +1,4 @@
-from strands import Agent
-from strands.tools import WebSearchTool # tavily search
+from agents import Agent, WebSearchTool
 from pydantic import BaseModel, Field
 from typing import List
 
@@ -15,8 +14,8 @@ class QA_Response(BaseModel):
 
 qa_agent = Agent(
     name="QA agent",
-    system_prompt=INSTRUCTIONS,
-    tools=[WebSearchTool(search_context_size="high")],
+    instructions=INSTRUCTIONS,
+    tools=[WebSearchTool(search_context_size="low")],
     output_type=QA_Response,
-    model="eu.amazon.nova-pro-v1:0",
+    model="gpt-4o-mini",
 )

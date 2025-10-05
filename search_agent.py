@@ -1,6 +1,4 @@
-from strands import Agent, WebSearchTool, ModelSettings
-from strands.tools import WebSearchTool # tavily search
-from pydantic import BaseModel, Field
+from agents import Agent, WebSearchTool, ModelSettings
 
 INSTRUCTIONS = (
     "You are a research assistant. Given a search term, you search the web for that term and "
@@ -12,8 +10,8 @@ INSTRUCTIONS = (
 
 search_agent = Agent(
     name="Search agent",
-    system_prompt=INSTRUCTIONS,
+    instructions=INSTRUCTIONS,
     tools=[WebSearchTool(search_context_size="low")],
-    model="eu.amazon.nova-pro-v1:0",
+    model="gpt-4o-mini",
     model_settings=ModelSettings(tool_choice="required"),
 )

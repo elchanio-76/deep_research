@@ -108,13 +108,64 @@ Evaluates research quality, identifies potential biases, and suggests improvemen
 - `research_manager.py` - Add quality check step
 - Update report output to include quality metrics
 
+## 6. Advanced Search Planning & Optimization
+
+### Overview
+Implements progressive search refinement and intelligent search strategy to maximize information quality within budget constraints.
+
+### Implementation Plan
+- **New Components**: `AdaptiveSearchPlanner`, `SearchQualityScorer`, `OutlinePlannerAgent`
+- **Output Models**: `ReportOutline`, `SearchResult` with quality metrics, `SearchCluster`
+- **Tools**: Semantic clustering, source diversity tracking, real-time search optimization
+- **Integration**: Replace current single-phase search planning in `ResearchManager`
+- **Key Functions**:
+  - Multi-phase search strategy (initial → deep-dive → gap-filling)
+  - Search quality scoring based on relevance, credibility, recency
+  - Outline-first approach with evidence requirements identification
+  - Dynamic search expansion based on initial findings
+  - Source diversity requirements and tracking
+
+### Files to Create/Modify
+- `adaptive_search_planner.py` - New multi-phase search orchestrator
+- `search_quality_scorer.py` - Search result evaluation and ranking
+- `outline_planner_agent.py` - Report structure planning before writing
+- `planner_agent.py` - Enhance with clustering and prioritization
+- `research_manager.py` - Update search workflow to use progressive refinement
+
+## 7. Cost-Effective Search Alternatives
+
+### Overview
+Reduces search costs by 50-80% through intelligent search routing and alternative search providers while maintaining quality.
+
+### Implementation Plan
+- **New Components**: `HybridSearchManager`, `SearchCache`, `CostEffectiveSearchTool`
+- **Output Models**: Enhanced search results with cost tracking
+- **Tools**: SerpAPI, Bing Search API, DuckDuckGo integration, search result caching
+- **Integration**: Replace OpenAI WebSearch tool with intelligent routing system
+- **Key Functions**:
+  - Smart search routing based on query importance and remaining budget
+  - Search result caching to avoid duplicate queries
+  - Batch search optimization for related queries
+  - Cost tracking and budget management
+  - Fallback search providers for different priority levels
+
+### Files to Create/Modify
+- `hybrid_search_manager.py` - Multi-provider search routing
+- `search_cache.py` - Query caching and deduplication
+- `cost_effective_search_tools.py` - Alternative search provider integrations
+- `search_agent.py` - Update to use hybrid search manager
+- `research_manager.py` - Add cost tracking and budget management
+- `requirements.txt` - Add serpapi, duckduckgo-search dependencies
+
 ## Implementation Priority
 
 1. [x] **Start with Extension #4 (Interactive Q&A)** - Easiest to implement, immediate user value
-2. [ ] **Extension #1 (Citation Agent)** - Builds on existing search functionality
-3. [ ] **Extension #5 (Quality Analysis)** - Enhances research credibility
-4. [ ] **Extension #3 (Memory System)** - Requires database setup
-5. [ ] **Extension #2 (Export Formats)** - Most complex due to document generation
+2. [x] **Extension #1 (Citation Agent)** - Builds on existing search functionality
+3. [ ] **Extension #7 (Cost-Effective Search)** - High impact cost savings, moderate effort
+4. [ ] **Extension #6 (Advanced Search Planning)** - Enhances search quality and efficiency
+5. [ ] **Extension #5 (Quality Analysis)** - Enhances research credibility
+6. [ ] **Extension #3 (Memory System)** - Requires database setup
+7. [ ] **Extension #2 (Export Formats)** - Most complex due to document generation
 
 ## General Implementation Notes
 
