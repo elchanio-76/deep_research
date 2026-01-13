@@ -7,7 +7,6 @@ from qa_agent import qa_agent
 from editor_agent import editor_agent, EditedReport
 import asyncio
 from new_models import FinalReportData, VerifiedClaims
-from verification_tools import SingleClaimCitation
 from fact_check_planner_agent import fact_check_planner, FactCheckingResult
 from claim_extraction_agent import claim_extractor, ExtractedClaims
     
@@ -222,7 +221,7 @@ class ResearchManager:
         
         fact_check_result = result.final_output_as(FactCheckingResult)
         
-        print(f"Fact-checking complete:")
+        print("Fact-checking complete:")
         print(f"  - Skipped: {fact_check_result.skipped_count}")
         print(f"  - Quick: {fact_check_result.quick_count}")
         print(f"  - Thorough: {fact_check_result.thorough_count}")
