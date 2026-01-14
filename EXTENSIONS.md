@@ -90,6 +90,7 @@ Provides conversational interface for follow-up questions about completed resear
 - `research_manager.py` - Add Q&A session management
 
 ## 5. Research Quality & Bias Analysis Agent
+*Implemented (user-triggered via Q&A)*
 
 ### Overview
 Evaluates research quality, identifies potential biases, and suggests improvements to research methodology.
@@ -97,19 +98,19 @@ Evaluates research quality, identifies potential biases, and suggests improvemen
 ### Implementation Plan
 - **New Agent**: `quality_agent.py`
 - **Output Model**: `QualityReport` with bias analysis and recommendations
-- **Tools**: Source credibility checker, bias detection algorithms
-- **Integration**: Run analysis after search completion, before final report
+- **Tools**: Targeted web searches (max 3) for credibility/recency/author checks
+- **Integration**: Run on-demand via Q&A triggers (`/quality`, `/bias`, or phrases like "run bias analysis")
 - **Key Functions**:
-  - Analyze source diversity and credibility scores
-  - Detect potential confirmation bias in search results
-  - Identify missing perspectives or viewpoints
-  - Generate quality confidence scores
-  - Suggest additional research directions
+  - Analyze source diversity and credibility tiers
+  - Score recency and author expertise
+  - Derive geographic/political/stance meta-scores
+  - Flag risks and suggest follow-up research questions
 
 ### Files to Create/Modify
-- `quality_agent.py` - New agent with bias analysis tools
-- `research_manager.py` - Add quality check step
-- Update report output to include quality metrics
+- `quality_agent.py` - Quality and bias analysis agent
+- `qa_agent.py` - Triggers and tool integration
+- `research_manager.py` - Provide report/query/search context for Q&A
+- `README.md` - Usage example for `/quality`
 
 ## 6. Advanced Search Planning & Optimization
 
@@ -164,9 +165,9 @@ Reduces search costs by 50-80% through intelligent search routing and alternativ
 
 1. [x] **Start with Extension #4 (Interactive Q&A)** - Easiest to implement, immediate user value
 2. [x] **Extension #1 (Citation Agent)** - Builds on existing search functionality
-3. [ ] **Extension #7 (Cost-Effective Search)** - High impact cost savings, moderate effort
-4. [ ] **Extension #6 (Advanced Search Planning)** - Enhances search quality and efficiency
-5. [ ] **Extension #5 (Quality Analysis)** - Enhances research credibility
+3. [x] **Extension #5 (Quality Analysis)** - Enhances research credibility
+4. [ ] **Extension #7 (Cost-Effective Search)** - High impact cost savings, moderate effort
+5. [ ] **Extension #6 (Advanced Search Planning)** - Enhances search quality and efficiency
 6. [ ] **Extension #3 (Memory System)** - Requires database setup
 7. [ ] **Extension #2 (Export Formats)** - Most complex due to document generation
 

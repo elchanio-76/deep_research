@@ -9,6 +9,7 @@
 - Key entrypoint: `deep_research.py`.
 - Core orchestration: `research_manager.py` with async pipelines.
 - Data models use Pydantic in `new_models.py`.
+- Quality & bias analysis is available via the Q&A flow (`/quality`, `/bias`).
 
 ## Cursor/Copilot Rules
 - No `.cursorrules`, `.cursor/rules/`, or `.github/copilot-instructions.md` found.
@@ -148,4 +149,4 @@
 - App entrypoint: `deep_research.py`
 - Orchestration: `research_manager.py`
 - Models: `new_models.py`
-- Agents: `planner_agent.py`, `writer_agent.py`, `qa_agent.py`, etc.
+- Agents: `planner_agent.py`, `writer_agent.py`, `qa_agent.py`, `quality_agent.py`, etc.
