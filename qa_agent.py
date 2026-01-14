@@ -38,7 +38,7 @@ async def run_quality_analysis(
     report_text: str,
     search_context: list[str],
     original_query: str | None = None,
-) -> dict:
+) -> QualityReport:
     """Run quality and bias analysis on the report."""
     search_summary = (
         "\n".join(search_context) if search_context else "No search context provided."
@@ -56,8 +56,8 @@ SEARCH SUMMARIES:
 """
 
     result = await Runner.run(quality_agent, input_text)
-    quality_report = result.final_output_as(QualityReport)
-    return quality_report.model_dump()
+    quality_report = QualityReport.model_validate(result.final_output)
+    return quality_report
 
 
 def is_quality_request(message: str) -> bool:
