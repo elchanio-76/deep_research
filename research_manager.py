@@ -4,10 +4,12 @@ from agents import Runner, Usage, gen_trace_id, trace
 
 from claim_extraction_agent import claim_extractor
 from config import (
+    AGENT_MODEL_MAP,
     DEFAULT_NUM_SEARCHES,
     FACT_CHECK_CONFIDENCE_THRESHOLD,
+    MODEL_COSTS,
     PLANNER_MODEL,
-    SEARCH_COST_ESTIMATE,
+    TOOL_COSTS,
 )
 from editor_agent import editor_agent
 from email_agent import email_agent
@@ -17,6 +19,7 @@ from new_models import (
     ExtractedClaims,
     FactCheckingResult,
     FinalReportData,
+    SessionUsage,
     VerifiedClaims,
     WebSearchItem,
     WebSearchPlan,
@@ -27,12 +30,15 @@ from qa_agent import is_quality_request, qa_agent
 from search_agent import search_agent
 from writer_agent import writer_agent
 
+from usage_tracker import record_tool_call, set_session_usage
+
 
 class ResearchManager:
     def __init__(self):
         self.report: FinalReportData | None = None
         self.search_results: list[str] = []
         self.last_query: str | None = None
+        self.session_usage = SessionUsage()
         self.input_tokens: int = 0
         self.output_tokens: int = 0
         self.cost: float = 0.0
@@ -71,7 +77,7 @@ class ResearchManager:
         print("Editing report based on fact-checking results...")
         result = await Runner.run(editor_agent, input_text)
 
-        self.update_usage_stats(result.context_wrapper.usage)
+        self.update_usage_stats("editor_agent", result.context_wrapper.usage)
         print("Report editing complete")
 
         return result.final_output_as(EditedReport)
@@ -81,6 +87,11 @@ class ResearchManager:
     async def run(self, query: str):
         """Run the deep research process, yielding status updates and final report"""
         self.last_query = query
+        self.session_usage = SessionUsage()
+        self.input_tokens = 0
+        self.output_tokens = 0
+        self.cost = 0.0
+        set_session_usage(self.session_usage)
         trace_id = gen_trace_id()
         with trace("Research trace", trace_id=trace_id):
             print(
@@ -160,6 +171,7 @@ class ResearchManager:
             yield "No report available. Please run a research query first."
             return
 
+        set_session_usage(self.session_usage)
         trace_id = gen_trace_id()
         quality_requested = is_quality_request(message)
         search_context = (
@@ -191,17 +203,44 @@ class ResearchManager:
                 qa_agent,
                 message,
             )
+            self.update_usage_stats("qa_agent", result.context_wrapper.usage)
             yield result.final_output.answer
 
-    def update_usage_stats(self, usage: Usage) -> None:
+    def calculate_total_cost(self) -> float:
+        total_cost = 0.0
+        for agent_name, usage in self.session_usage.agents.items():
+            model_name = AGENT_MODEL_MAP.get(agent_name)
+            if model_name is None:
+                continue
+            model_cost = MODEL_COSTS.get(model_name, {})
+            input_rate = model_cost.get("input", 0.0)
+            output_rate = model_cost.get("output", 0.0)
+            total_cost += (usage.input_tokens / 1_000_000) * input_rate
+            total_cost += (usage.output_tokens / 1_000_000) * output_rate
+
+        for tool_name, count in self.session_usage.total_tool_calls.items():
+            total_cost += TOOL_COSTS.get(tool_name, 0.0) * count
+
+        return total_cost
+
+    def get_cost_summary(self) -> str:
+        total_tool_calls = sum(self.session_usage.total_tool_calls.values())
+        total_cost = self.calculate_total_cost()
+        return (
+            "### Session Cost Summary\n"
+            f"- Total input tokens: {self.session_usage.total_input_tokens}\n"
+            f"- Total output tokens: {self.session_usage.total_output_tokens}\n"
+            f"- Total tool calls: {total_tool_calls}\n"
+            f"- Total running cost: ${total_cost:.4f}\n"
+        )
+
+    def update_usage_stats(self, agent_name: str, usage: Usage) -> None:
+        self.session_usage.add_agent_usage(
+            agent_name, usage.input_tokens, usage.output_tokens
+        )
         self.input_tokens += usage.input_tokens
         self.output_tokens += usage.output_tokens
-        input_token_cost = 0.15 / 1000000
-        output_token_cost = 0.60 / 1000000
-        self.cost += (
-            usage.input_tokens * input_token_cost
-            + usage.output_tokens * output_token_cost
-        )
+        self.cost = self.calculate_total_cost()
 
     async def _extract_claims(self, report_text: str) -> ExtractedClaims:
         """Extract all claims from report in one pass"""
@@ -209,7 +248,7 @@ class ResearchManager:
             claim_extractor,
             f"Extract verifiable factual claims from this report:\n\n{report_text}",
         )
-        self.update_usage_stats(result.context_wrapper.usage)
+        self.update_usage_stats("claim_extractor", result.context_wrapper.usage)
         return result.final_output_as(ExtractedClaims)
 
     async def fact_check_report(
@@ -251,7 +290,7 @@ class ResearchManager:
         print("Executing adaptive fact-checking...")
         result = await Runner.run(fact_check_planner, input_text)
 
-        self.update_usage_stats(result.context_wrapper.usage)
+        self.update_usage_stats("fact_check_planner", result.context_wrapper.usage)
 
         fact_check_result = result.final_output_as(FactCheckingResult)
 
@@ -278,8 +317,8 @@ class ResearchManager:
             f"Query: {query}",
         )
         print(f"Will perform {len(result.final_output.searches)} searches")
-        self.update_usage_stats(result.context_wrapper.usage)
-        print(f"Total cost: {self.cost}")
+        self.update_usage_stats("planner_agent", result.context_wrapper.usage)
+        print(f"Total cost: {self.calculate_total_cost()}")
         return result.final_output_as(WebSearchPlan)
 
     async def perform_searches(self, search_plan: WebSearchPlan) -> list[str]:
@@ -300,7 +339,7 @@ class ResearchManager:
 
         print("Finished searching")
 
-        print(f"Total cost: {self.cost}")
+        print(f"Total cost: {self.calculate_total_cost()}")
         return results
 
     async def search(self, item: WebSearchItem) -> str | None:
@@ -311,10 +350,8 @@ class ResearchManager:
                 search_agent,
                 input,
             )
-            self.update_usage_stats(result.context_wrapper.usage)
-            # Add the search tool cost to the total cost
-            # TODO: Find out if there's a more elegant way to do this
-            self.cost += SEARCH_COST_ESTIMATE
+            self.update_usage_stats("search_agent", result.context_wrapper.usage)
+            record_tool_call("search_agent", "web_search")
             return str(result.final_output)
         except Exception:
             return None
@@ -327,9 +364,9 @@ class ResearchManager:
             writer_agent,
             input,
         )
-        self.update_usage_stats(result.context_wrapper.usage)
+        self.update_usage_stats("writer_agent", result.context_wrapper.usage)
         print("Finished writing report")
-        print(f"Total cost: {self.cost}")
+        print(f"Total cost: {self.calculate_total_cost()}")
         return result.final_output_as(WriterOutput)
 
     async def send_email(self, report: FinalReportData) -> None:
@@ -338,6 +375,6 @@ class ResearchManager:
             email_agent,
             report.markdown_report,
         )
-        self.update_usage_stats(result.context_wrapper.usage)
+        self.update_usage_stats("email_agent", result.context_wrapper.usage)
         print("Email sent")
-        print(f"Total cost: {self.cost}")
+        print(f"Total cost: {self.calculate_total_cost()}")

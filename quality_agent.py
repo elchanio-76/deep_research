@@ -3,6 +3,7 @@ from agents import Agent, Runner, function_tool
 from config import QUALITY_AGENT_MAX_SEARCHES, QUALITY_MODEL
 from new_models import QualityReport
 from search_agent import search_agent
+from usage_tracker import record_agent_usage, record_tool_call
 
 QUALITY_INSTRUCTIONS = """You are a research quality and bias analysis assistant.
 
@@ -44,6 +45,8 @@ async def quality_web_search(queries: list[str]) -> list[dict[str, str]]:
         )
         try:
             result = await Runner.run(search_agent, search_input)
+            record_agent_usage("search_agent", result.context_wrapper.usage)
+            record_tool_call("search_agent", "web_search")
             summary = str(result.final_output)
         except Exception as exc:
             summary = f"Search failed: {exc}"

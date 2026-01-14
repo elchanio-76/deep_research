@@ -14,6 +14,7 @@ from config import (
     VERIFICATION_TOOL_MODEL,
 )
 from new_models import SingleClaimCitation
+from usage_tracker import record_agent_usage, record_tool_call
 
 # ========================================
 # UNIFIED OUTPUT MODELS
@@ -174,6 +175,8 @@ Verification strategy: quick"""
 
     try:
         result = await Runner.run(quick_verifier_agent, input_text)
+        record_agent_usage("quick_verifier_agent", result.context_wrapper.usage)
+        record_tool_call("quick_verifier_agent", "web_search")
         output = result.final_output
         output.verification_strategy = "quick"
         return output.model_dump()
@@ -214,6 +217,8 @@ Verification strategy: thorough"""
 
     try:
         result = await Runner.run(thorough_verifier_agent, input_text)
+        record_agent_usage("thorough_verifier_agent", result.context_wrapper.usage)
+        record_tool_call("thorough_verifier_agent", "web_search")
         output = result.final_output
         output.verification_strategy = "thorough"
         return output.model_dump()
@@ -264,6 +269,10 @@ Verification strategy: thorough (first stage of red team verification)"""
 
     try:
         thorough_result = await Runner.run(thorough_verifier_agent, thorough_input)
+        record_agent_usage(
+            "thorough_verifier_agent", thorough_result.context_wrapper.usage
+        )
+        record_tool_call("thorough_verifier_agent", "web_search")
         initial = thorough_result.final_output
         initial.verification_strategy = "thorough"
     except Exception as e:
@@ -296,6 +305,10 @@ Remember: You can only LOWER or MAINTAIN the confidence score, never increase it
 
     try:
         red_team_result = await Runner.run(red_team_challenger_agent, red_team_input)
+        record_agent_usage(
+            "red_team_challenger_agent", red_team_result.context_wrapper.usage
+        )
+        record_tool_call("red_team_challenger_agent", "web_search")
         final = red_team_result.final_output
         final.verification_strategy = "red_teamed"
 
@@ -370,6 +383,8 @@ Verify using 2-3 searches. For each claim be CONCISE:
 
     try:
         result = await Runner.run(group_verifier_agent, input_text)
+        record_agent_usage("group_verifier_agent", result.context_wrapper.usage)
+        record_tool_call("group_verifier_agent", "web_search")
 
         # Ensure all claims have correct metadata
         for claim_result in result.final_output.verified_claims:
@@ -406,6 +421,10 @@ Verify using 2-3 searches. For each claim be CONCISE:
                         quick_verifier_agent,
                         f"Claim: {claim}\nContext: {shared_context[:200]}",
                     )
+                    record_agent_usage(
+                        "quick_verifier_agent", quick_result.context_wrapper.usage
+                    )
+                    record_tool_call("quick_verifier_agent", "web_search")
                     output = quick_result.final_output
                     output.verification_strategy = (
                         "grouped"  # Mark as originally intended for group

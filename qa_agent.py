@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from config import QA_MODEL
 from new_models import QualityReport
 from quality_agent import quality_agent
+from usage_tracker import record_agent_usage
 
 QUALITY_COMMANDS = {"/quality", "/bias"}
 QUALITY_TRIGGER_PHRASES = {
@@ -58,6 +59,7 @@ SEARCH SUMMARIES:
 """
 
     result = await Runner.run(quality_agent, input_text)
+    record_agent_usage("quality_agent", result.context_wrapper.usage)
     quality_report = QualityReport.model_validate(result.final_output)
     return quality_report
 

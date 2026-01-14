@@ -5,6 +5,47 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from config import FACT_CHECK_CONFIDENCE_THRESHOLD
 
 
+class AgentUsage(BaseModel):
+    input_tokens: int = 0
+    output_tokens: int = 0
+    tool_calls: dict[str, int] = Field(default_factory=dict)
+
+    def add_tokens(self, input_tokens: int, output_tokens: int) -> None:
+        self.input_tokens += input_tokens
+        self.output_tokens += output_tokens
+
+    def add_tool_call(self, tool_name: str, count: int = 1) -> None:
+        self.tool_calls[tool_name] = self.tool_calls.get(tool_name, 0) + count
+
+
+class SessionUsage(BaseModel):
+    agents: dict[str, AgentUsage] = Field(default_factory=dict)
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    total_tool_calls: dict[str, int] = Field(default_factory=dict)
+
+    def add_agent_usage(
+        self, agent_name: str, input_tokens: int, output_tokens: int
+    ) -> None:
+        agent_usage = self.agents.get(agent_name)
+        if agent_usage is None:
+            agent_usage = AgentUsage()
+            self.agents[agent_name] = agent_usage
+        agent_usage.add_tokens(input_tokens, output_tokens)
+        self.total_input_tokens += input_tokens
+        self.total_output_tokens += output_tokens
+
+    def add_tool_call(self, agent_name: str, tool_name: str, count: int = 1) -> None:
+        agent_usage = self.agents.get(agent_name)
+        if agent_usage is None:
+            agent_usage = AgentUsage()
+            self.agents[agent_name] = agent_usage
+        agent_usage.add_tool_call(tool_name, count)
+        self.total_tool_calls[tool_name] = (
+            self.total_tool_calls.get(tool_name, 0) + count
+        )
+
+
 class WebSearchItem(BaseModel):
     reason: str = Field(
         description="Your reasoning for why this search is important to the query."

@@ -1,7 +1,6 @@
 QUALITY_AGENT_MAX_SEARCHES = 3
 DEFAULT_NUM_SEARCHES = 5
 FACT_CHECK_CONFIDENCE_THRESHOLD = 70
-SEARCH_COST_ESTIMATE = 25 / 1000
 GROUP_VERIFY_MAX_CLAIMS = 3
 GROUP_VERIFY_CONTEXT_LIMIT = 500
 GROUP_VERIFY_CLAIM_SNIPPET_LEN = 200
@@ -17,3 +16,31 @@ CITATION_MODEL = "gpt-5-mini"
 EDITOR_MODEL = "gpt-5-mini"
 EMAIL_MODEL = "gpt-4o-mini"
 VERIFICATION_TOOL_MODEL = "gpt-4o-mini"
+
+AGENT_MODEL_MAP = {
+    "planner_agent": PLANNER_MODEL,
+    "search_agent": SEARCH_MODEL,
+    "writer_agent": WRITER_MODEL,
+    "qa_agent": QA_MODEL,
+    "quality_agent": QUALITY_MODEL,
+    "claim_extractor": CLAIM_EXTRACTOR_MODEL,
+    "fact_check_planner": FACT_CHECK_PLANNER_MODEL,
+    "editor_agent": EDITOR_MODEL,
+    "email_agent": EMAIL_MODEL,
+    "quick_verifier_agent": VERIFICATION_TOOL_MODEL,
+    "thorough_verifier_agent": VERIFICATION_TOOL_MODEL,
+    "red_team_challenger_agent": VERIFICATION_TOOL_MODEL,
+    "group_verifier_agent": VERIFICATION_TOOL_MODEL,
+}
+
+MODEL_COSTS = {
+    # Costs per 1M tokens, no caching
+    "gpt-5": {"input": 1.25, "output": 10.0},
+    "gpt-5-mini": {"input": 0.25, "output": 2.0},
+    "gpt-4o-mini": {"input": 0.15, "output": 0.6},
+}
+
+TOOL_COSTS = {
+    # Per tool call
+    "web_search": 0.0112,  # For use with gpt-4o-mini
+}
