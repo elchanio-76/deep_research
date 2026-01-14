@@ -17,6 +17,7 @@ An intelligent research assistant built with OpenAI's Agents SDK that conducts c
 ### Core Components
 
 #### 1. Research Manager (`research_manager.py`)
+
 The central orchestrator that manages the entire research pipeline:
 
 ```
@@ -24,6 +25,7 @@ Query → Plan Searches → Execute Searches → Write Report → Fact-Check →
 ```
 
 **Key Methods:**
+
 - `run(query)`: Main research pipeline with streaming updates
 - `chat(message, history)`: Q&A interface for generated reports
 - `fact_check_report()`: Adaptive fact-checking with intelligent strategy selection
@@ -31,20 +33,24 @@ Query → Plan Searches → Execute Searches → Write Report → Fact-Check →
 #### 2. Agent Network
 
 **Planning & Search Agents:**
+
 - `PlannerAgent` (`planner_agent.py`): Generates strategic web search plans
 - `search_agent.py`: Executes individual web searches with context
 
 **Content Generation Agents:**
+
 - `writer_agent.py`: Creates comprehensive research reports
 - `editor_agent.py`: Revises reports based on fact-checking results
 - `email_agent.py`: Generates professional email summaries
 
 **Fact-Checking System:**
+
 - `claim_extraction_agent.py`: Extracts verifiable claims with rich metadata
 - `fact_check_planner_agent.py`: Orchestrates verification strategies
 - `verification_tools.py`: Implements multiple verification approaches
 
 **Interactive Agents:**
+
 - `qa_agent.py`: Handles Q&A on report findings
 
 #### 3. Verification System
@@ -52,6 +58,7 @@ Query → Plan Searches → Execute Searches → Write Report → Fact-Check →
 The fact-checking system uses intelligent strategy selection:
 
 **Verification Strategies:**
+
 - **Skip**: For obvious facts and definitions (~$0.00)
 - **Quick**: Single search verification (~$0.015)
 - **Thorough**: Multi-source cross-referencing (~$0.03)
@@ -59,6 +66,7 @@ The fact-checking system uses intelligent strategy selection:
 - **Group**: Batch verification of related claims (cost-efficient)
 
 **Claim Analysis:**
+
 - Importance scoring (critical/high/medium/low)
 - Controversy assessment (uncontroversial/somewhat/highly controversial)
 - Verifiability rating (easily/moderately/hard to verify)
@@ -67,6 +75,7 @@ The fact-checking system uses intelligent strategy selection:
 #### 4. Data Models (`new_models.py`)
 
 **Core Models:**
+
 - `FinalReportData`: Complete report with fact-checking metadata
 - `VerifiedClaims`: Collection of fact-checked claims with confidence scores
 - `SingleClaimCitation`: Individual claim verification results
@@ -108,6 +117,7 @@ Based on this analysis, it selects the most appropriate verification strategy, o
 ### 3. Adaptive Editing
 
 When dubious claims (confidence < 70%) are detected:
+
 - Reports are automatically edited to reflect verification results
 - Low-confidence claims are flagged or removed
 - Supporting evidence is strengthened
@@ -119,7 +129,7 @@ When dubious claims (confidence < 70%) are detected:
 
 The application provides a clean web interface with two main sections:
 
-1. **Research Section**: 
+1. **Research Section**:
    - Query input field
    - Real-time progress updates
    - Final report display
@@ -132,17 +142,20 @@ The application provides a clean web interface with two main sections:
 ## Installation & Setup
 
 1. **Install Dependencies**:
+
    ```bash
    pip install gradio python-dotenv agents pydantic
    ```
 
 2. **Environment Configuration**:
    Create a `.env` file with:
+
    ```
    OPENAI_API_KEY=your_api_key_here
    ```
 
 3. **Run Application**:
+
    ```bash
    python deep_research.py
    ```
@@ -150,6 +163,7 @@ The application provides a clean web interface with two main sections:
 ## Usage Examples
 
 ### Basic Research Query
+
 ```python
 research_manager = ResearchManager()
 async for update in research_manager.run("Impact of AI on healthcare"):
@@ -157,8 +171,16 @@ async for update in research_manager.run("Impact of AI on healthcare"):
 ```
 
 ### Q&A on Generated Report
+
 ```python
 async for response in research_manager.chat("What are the main benefits mentioned?", []):
+    print(response)
+```
+
+### Quality & Bias Analysis (on request)
+
+```python
+async for response in research_manager.chat("/quality", []):
     print(response)
 ```
 
@@ -172,6 +194,7 @@ The system implements intelligent cost management:
 - **Skip Trivial**: Avoid unnecessary verification of obvious facts
 
 Typical costs:
+
 - Simple research query: $0.10-0.30
 - Complex topic with fact-checking: $0.50-1.50
 - Highly controversial topic: $2.00-5.00
@@ -199,18 +222,21 @@ deep_research/
 ## Key Features in Detail
 
 ### Intelligent Fact-Checking
+
 - Extracts claims with rich metadata (importance, controversy, verifiability)
 - Selects optimal verification strategy per claim
 - Provides confidence scores and detailed rationales
 - Supports multiple verification approaches (quick, thorough, red-team, grouped)
 
 ### Adaptive Report Editing
+
 - Automatically identifies dubious claims (confidence < 70%)
 - Edits reports to strengthen weak claims
 - Maintains report coherence while improving accuracy
 - Provides edit summaries for transparency
 
 ### Interactive Q&A
+
 - Context-aware responses based on generated reports
 - Web search integration for additional information
 - Source attribution and citation
@@ -219,6 +245,7 @@ deep_research/
 ## Future Enhancements
 
 See `EXTENSIONS.md` for planned features including:
+
 - Multi-format export (PDF, PowerPoint, Word)
 - Advanced citation management
 - Collaborative research workflows

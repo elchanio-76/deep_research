@@ -117,7 +117,7 @@ citation_agent = Agent(
     instructions=INSTRUCTIONS,
     tools=[WebSearchTool(search_context_size="medium")],
     output_type=CitationsList,
-    model="gpt-4o-mini"
+    model="gpt-5-mini"
 )
 
 citation_agent_tool = citation_agent.as_tool(tool_name="fact_checker",tool_description="Fact-check the report and provide citations")

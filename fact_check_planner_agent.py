@@ -90,6 +90,6 @@ fact_check_planner = Agent(
         thorough_verify,
         red_team_verify
     ],
-    model="gpt-4o",  # Use more capable model for planning
+    model="gpt-5.2",  # Use more capable model for planning
     output_type=FactCheckingResult
 )

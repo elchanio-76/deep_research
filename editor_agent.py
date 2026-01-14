@@ -51,6 +51,6 @@ class EditedReport(BaseModel):
 editor_agent = Agent(
     name="Report Editor",
     instructions=INSTRUCTIONS,
-    model="gpt-4o-mini",
+    model="gpt-5-mini",
     output_type=EditedReport  # ← Changed from FinalReportData
 )

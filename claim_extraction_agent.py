@@ -99,6 +99,6 @@ class ExtractedClaims(BaseModel):
 claim_extractor = Agent(
     name="Claim Extractor",
     instructions=EXTRACTION_INSTRUCTIONS,
-    model="gpt-4o-mini",
+    model="gpt-5-mini",
     output_type=ExtractedClaims
 )
