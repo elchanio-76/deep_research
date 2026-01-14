@@ -9,6 +9,7 @@
 - Key entrypoint: `deep_research.py`.
 - Core orchestration: `research_manager.py` with async pipelines.
 - Data models use Pydantic in `new_models.py`.
+- Model defaults and shared constants live in `config.py`.
 - Quality & bias analysis is available via the Q&A flow (`/quality`, `/bias`).
 
 ## Cursor/Copilot Rules

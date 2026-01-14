@@ -1,14 +1,31 @@
-from agents import Runner, trace, gen_trace_id, Usage
-from search_agent import search_agent
-from planner_agent import PlannerAgent, WebSearchItem, WebSearchPlan
-from writer_agent import writer_agent, WriterOutput
-from email_agent import email_agent
-from qa_agent import qa_agent, is_quality_request
-from editor_agent import editor_agent, EditedReport
 import asyncio
-from new_models import FinalReportData, VerifiedClaims
-from fact_check_planner_agent import fact_check_planner, FactCheckingResult
-from claim_extraction_agent import claim_extractor, ExtractedClaims
+
+from agents import Runner, Usage, gen_trace_id, trace
+
+from claim_extraction_agent import claim_extractor
+from config import (
+    DEFAULT_NUM_SEARCHES,
+    FACT_CHECK_CONFIDENCE_THRESHOLD,
+    PLANNER_MODEL,
+    SEARCH_COST_ESTIMATE,
+)
+from editor_agent import editor_agent
+from email_agent import email_agent
+from fact_check_planner_agent import fact_check_planner
+from new_models import (
+    EditedReport,
+    ExtractedClaims,
+    FactCheckingResult,
+    FinalReportData,
+    VerifiedClaims,
+    WebSearchItem,
+    WebSearchPlan,
+    WriterOutput,
+)
+from planner_agent import PlannerAgent
+from qa_agent import is_quality_request, qa_agent
+from search_agent import search_agent
+from writer_agent import writer_agent
 
 
 class ResearchManager:
@@ -74,9 +91,7 @@ class ResearchManager:
             # Step 1: Plan and execute searches
             print("Starting research...")
             yield "Planning searches...\n"
-            search_plan = await self.plan_searches(
-                query, model="gpt-4o-mini", num_searches=5
-            )
+            search_plan = await self.plan_searches(query)
 
             yield "Executing searches...\n"
             search_results = await self.perform_searches(search_plan)
@@ -95,7 +110,9 @@ class ResearchManager:
 
             # Step 4: Determine if editing is needed
             dubious_claims = [
-                claim for claim in verified_claims.claims if claim.confidence_score < 70
+                claim
+                for claim in verified_claims.claims
+                if claim.confidence_score < FACT_CHECK_CONFIDENCE_THRESHOLD
             ]
 
             if dubious_claims:
@@ -248,7 +265,10 @@ class ResearchManager:
         return VerifiedClaims(claims=fact_check_result.verified_claims)
 
     async def plan_searches(
-        self, query: str, model: str = "gpt-5-mini", num_searches: int = 5
+        self,
+        query: str,
+        model: str = PLANNER_MODEL,
+        num_searches: int = DEFAULT_NUM_SEARCHES,
     ) -> WebSearchPlan:
         """Plan the searches to perform for the query"""
         print("Planning searches...")
@@ -294,7 +314,7 @@ class ResearchManager:
             self.update_usage_stats(result.context_wrapper.usage)
             # Add the search tool cost to the total cost
             # TODO: Find out if there's a more elegant way to do this
-            self.cost += 25 / 1000
+            self.cost += SEARCH_COST_ESTIMATE
             return str(result.final_output)
         except Exception:
             return None
@@ -321,4 +341,3 @@ class ResearchManager:
         self.update_usage_stats(result.context_wrapper.usage)
         print("Email sent")
         print(f"Total cost: {self.cost}")
-        return report

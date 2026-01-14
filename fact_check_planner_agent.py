@@ -1,7 +1,17 @@
+from typing import Literal
+
 from agents import Agent
 from pydantic import BaseModel, Field
-from verification_tools import skip_verification, quick_verify, thorough_verify, red_team_verify, group_verify, SingleClaimCitation
-from typing import Literal
+
+from config import FACT_CHECK_PLANNER_MODEL
+from new_models import FactCheckingResult
+from verification_tools import (
+    group_verify,
+    quick_verify,
+    red_team_verify,
+    skip_verification,
+    thorough_verify,
+)
 
 PLANNER_INSTRUCTIONS = """You are an intelligent fact-checking strategist.
 
@@ -65,20 +75,19 @@ PROCESS:
 
 BE STRATEGIC: Optimize for accuracy on important claims while minimizing cost on trivial claims."""
 
-class VerificationPlan(BaseModel):
-    claim_id: int = Field(description = "The number of the claim, used for reference and grouping")
-    strategy: Literal['skip','quick','group','thorough','red_team'] = Field(description="skip|quick|group|thorough|red_team")
-    reasoning: str = Field(description="Why this strategy was chosen")
-    group_members: list[int] = Field(default=[], description="Other claim IDs in group (if grouped)")
 
-class FactCheckingResult(BaseModel):
-    verified_claims: list[SingleClaimCitation] = Field(description="List of verified claims")
-    total_cost_estimate: float = Field(description="Estimated cost in USD")
-    skipped_count: int = Field(description = "The number of skipped claim verifications")
-    quick_count: int = Field(description = "The number of quick claim verifications")
-    group_count: int = Field(description = "The number of group claim verifications")
-    thorough_count: int = Field(description = "The number of claims for thorough verification")
-    red_team_count: int = Field(description = "The number of claims for red_team verification")
+class VerificationPlan(BaseModel):
+    claim_id: int = Field(
+        description="The number of the claim, used for reference and grouping"
+    )
+    strategy: Literal["skip", "quick", "group", "thorough", "red_team"] = Field(
+        description="skip|quick|group|thorough|red_team"
+    )
+    reasoning: str = Field(description="Why this strategy was chosen")
+    group_members: list[int] = Field(
+        default=[], description="Other claim IDs in group (if grouped)"
+    )
+
 
 fact_check_planner = Agent(
     name="Fact Check Planner",
@@ -88,8 +97,8 @@ fact_check_planner = Agent(
         quick_verify,
         group_verify,
         thorough_verify,
-        red_team_verify
+        red_team_verify,
     ],
-    model="gpt-5.2",  # Use more capable model for planning
-    output_type=FactCheckingResult
+    model=FACT_CHECK_PLANNER_MODEL,
+    output_type=FactCheckingResult,
 )

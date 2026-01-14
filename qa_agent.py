@@ -1,7 +1,9 @@
 from agents import Agent, Runner, WebSearchTool, function_tool
 from pydantic import BaseModel, Field
 
-from quality_agent import QualityReport, quality_agent
+from config import QA_MODEL
+from new_models import QualityReport
+from quality_agent import quality_agent
 
 QUALITY_COMMANDS = {"/quality", "/bias"}
 QUALITY_TRIGGER_PHRASES = {
@@ -72,5 +74,5 @@ qa_agent = Agent(
     instructions=INSTRUCTIONS,
     tools=[run_quality_analysis, WebSearchTool(search_context_size="low")],
     output_type=QA_Response,
-    model="gpt-4o-mini",
+    model=QA_MODEL,
 )

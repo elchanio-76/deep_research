@@ -160,6 +160,9 @@ The application provides a clean web interface with two main sections:
    python deep_research.py
    ```
 
+4. **Model Defaults & Constants**:
+   - Update `config.py` to tweak model selections and shared limits.
+
 ## Usage Examples
 
 ### Basic Research Query

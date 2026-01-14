@@ -1,5 +1,7 @@
 from agents import Agent, WebSearchTool, ModelSettings
 
+from config import SEARCH_MODEL
+
 INSTRUCTIONS = (
     "You are a research assistant. Given a search term, you search the web for that term and "
     "produce a concise summary of the results. The summary must 2-3 paragraphs and less than 300 "
@@ -12,6 +14,6 @@ search_agent = Agent(
     name="Search agent",
     instructions=INSTRUCTIONS,
     tools=[WebSearchTool(search_context_size="low")],
-    model="gpt-4o-mini",
+    model=SEARCH_MODEL,
     model_settings=ModelSettings(tool_choice="required"),
 )

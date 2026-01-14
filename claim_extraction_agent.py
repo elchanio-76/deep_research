@@ -1,8 +1,9 @@
 # claim_extraction_agent.py
 
-from typing import Literal
 from agents import Agent
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+
+from config import CLAIM_EXTRACTOR_MODEL
+from new_models import ExtractedClaims
 
 EXTRACTION_INSTRUCTIONS = """Extract factual claims from the report with rich metadata.
 
@@ -32,73 +33,9 @@ For each claim, assess:
    - opinion: Subjective assessment (may not need verification)"""
 
 
-# Define types as module-level constants for reuse
-ImportanceLevel = Literal["critical", "high", "medium", "low"]
-ControversyLevel = Literal["uncontroversial", "somewhat_controversial", "highly_controversial"]
-VerifiabilityLevel = Literal["easily_verifiable", "moderately_verifiable", "hard_to_verify"]
-ClaimType = Literal["statistical", "historical", "scientific", "predictive", "definitional", "opinion"]
-
-class ExtractedClaim(BaseModel):
-    """A factual claim extracted from a research report with metadata for verification planning"""
-    
-    model_config = ConfigDict(
-        use_enum_values=True,
-        validate_assignment=True,
-    )
-    
-    claim_text: str = Field(
-        min_length=10,
-        max_length=500,
-        description="The factual claim extracted from the report"
-    )
-    
-    context: str = Field(
-        max_length=1000,
-        description="Surrounding context from the report"
-    )
-    
-    importance: ImportanceLevel = Field(
-        description="How central this claim is to the report's thesis"
-    )
-    
-    controversy_level: ControversyLevel = Field(
-        description="How likely this claim is to be disputed among experts"
-    )
-    
-    verifiability: VerifiabilityLevel = Field(
-        description="How easy this claim is to fact-check with external sources"
-    )
-    
-    claim_type: ClaimType = Field(
-        description="The category of claim being made"
-    )
-    
-    semantic_topic: str = Field(
-        min_length=3,
-        max_length=50,
-        description="Main topic/domain (e.g., 'climate science', 'economics')"
-    )
-    
-    @field_validator('importance')
-    @classmethod
-    def validate_importance_controversy(cls, v: str, info) -> str:
-        """Ensure highly controversial claims are not marked as low importance"""
-        if info.data.get('controversy_level') == 'highly_controversial' and v == 'low':
-            # Auto-correct instead of raising error (be lenient with LLM)
-            return 'medium'
-        return v
-
-class ExtractedClaims(BaseModel):
-    """Collection of claims extracted from a report"""
-    
-    claims: list[ExtractedClaim] = Field(
-        min_length=1,
-        description="List of all extracted claims with verification metadata"
-    )
-
 claim_extractor = Agent(
     name="Claim Extractor",
     instructions=EXTRACTION_INSTRUCTIONS,
-    model="gpt-5-mini",
-    output_type=ExtractedClaims
+    model=CLAIM_EXTRACTOR_MODEL,
+    output_type=ExtractedClaims,
 )

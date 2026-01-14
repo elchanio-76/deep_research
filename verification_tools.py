@@ -4,52 +4,20 @@ Verification tools for fact-checking claims with different strategies.
 Agents are defined at module level for reusability across tools and future workflows.
 """
 
-from typing import Literal, Optional
 from agents import Agent, function_tool, WebSearchTool, ModelSettings, Runner
 from pydantic import BaseModel, Field
+
+from config import (
+    GROUP_VERIFY_CLAIM_SNIPPET_LEN,
+    GROUP_VERIFY_CONTEXT_LIMIT,
+    GROUP_VERIFY_MAX_CLAIMS,
+    VERIFICATION_TOOL_MODEL,
+)
+from new_models import SingleClaimCitation
 
 # ========================================
 # UNIFIED OUTPUT MODELS
 # ========================================
-
-
-class SingleClaimCitation(BaseModel):
-    """Unified verification result for a single claim"""
-
-    claim: str = Field(description="The claim being verified")
-
-    search_queries_used: list[str] = Field(
-        default=[], description="Web searches performed for this claim"
-    )
-
-    supporting_citations: list[str] = Field(
-        default=[], description="APA format citations supporting the claim"
-    )
-
-    contradicting_citations: list[str] = Field(
-        default=[], description="APA format citations contradicting the claim"
-    )
-
-    confidence_score: int = Field(description="Confidence score (0-100)", ge=0, le=100)
-
-    confidence_rationale: str = Field(
-        description="Detailed reasoning for the confidence score"
-    )
-
-    is_verified: bool = Field(description="Whether the claim is verified as accurate")
-
-    verification_strategy: Literal[
-        "skipped", "quick", "thorough", "red_teamed", "grouped"
-    ] = Field(description="Strategy used for verification")
-
-    # Optional fields for strategy-specific metadata
-    red_team_critiques: Optional[list[str]] = Field(
-        default=None, description="Logical critiques from red team (if red_teamed)"
-    )
-
-    grouped_with: Optional[list[str]] = Field(
-        default=None, description="Other claims verified in same group (if grouped)"
-    )
 
 
 class GroupVerificationResult(BaseModel):
@@ -80,7 +48,7 @@ quick_verifier_agent = Agent(
     
     Be efficient but thorough.""",
     tools=[WebSearchTool(search_context_size="low")],
-    model="gpt-4o-mini",
+    model=VERIFICATION_TOOL_MODEL,
     output_type=SingleClaimCitation,
 )
 
@@ -104,7 +72,7 @@ thorough_verifier_agent = Agent(
     - Supporting and contradicting citations
     - Detailed confidence rationale""",
     tools=[WebSearchTool(search_context_size="medium")],
-    model="gpt-4o-mini",
+    model=VERIFICATION_TOOL_MODEL,
     output_type=SingleClaimCitation,
     model_settings=ModelSettings(tool_choice="required"),
 )
@@ -132,7 +100,7 @@ red_team_challenger_agent = Agent(
     - Red team critiques in the red_team_critiques field
     - Rationale incorporating both initial and red team findings""",
     tools=[WebSearchTool(search_context_size="medium")],
-    model="gpt-4o-mini",
+    model=VERIFICATION_TOOL_MODEL,
     output_type=SingleClaimCitation,
 )
 
@@ -154,7 +122,7 @@ group_verifier_agent = Agent(
     
     Be efficient but don't compromise accuracy.""",
     tools=[WebSearchTool(search_context_size="medium")],
-    model="gpt-4o-mini",
+    model=VERIFICATION_TOOL_MODEL,
     output_type=GroupVerificationResult,
 )
 
@@ -371,20 +339,24 @@ async def group_verify(
     """
 
     # CRITICAL: Limit group size to prevent JSON truncation
-    if len(claims) > 3:
+    if len(claims) > GROUP_VERIFY_MAX_CLAIMS:
         print(
-            f"⚠️  Group has {len(claims)} claims, limiting to first 3 to prevent output truncation"
+            "⚠️  Group has "
+            f"{len(claims)} claims, limiting to first {GROUP_VERIFY_MAX_CLAIMS} "
+            "to prevent output truncation"
         )
-        claims = claims[:3]
+        claims = claims[:GROUP_VERIFY_MAX_CLAIMS]
 
     # Limit context length as well
-    context_limit = 500
-    if len(shared_context) > context_limit:
-        shared_context = shared_context[:context_limit] + "..."
+    if len(shared_context) > GROUP_VERIFY_CONTEXT_LIMIT:
+        shared_context = shared_context[:GROUP_VERIFY_CONTEXT_LIMIT] + "..."
 
     claims_text = "\n".join(
-        [f"{i + 1}. {c[:200]}" for i, c in enumerate(claims)]
-    )  # Limit claim length
+        [
+            f"{i + 1}. {claim[:GROUP_VERIFY_CLAIM_SNIPPET_LEN]}"
+            for i, claim in enumerate(claims)
+        ]
+    )
 
     input_text = f"""RELATED CLAIMS (Topic: {semantic_topic}):
 {claims_text}

@@ -2,7 +2,9 @@
 # Instructions and data model updated for use with intelligent fact-checking
 
 from agents import Agent
-from pydantic import BaseModel, Field
+
+from config import EDITOR_MODEL
+from new_models import EditedReport
 
 INSTRUCTIONS = """You are a careful report editor. You will receive:
 1. An original research report (markdown format)
@@ -33,24 +35,9 @@ OUTPUT:
 - The edited markdown report incorporating all changes
 - A summary of edits made (what was removed, qualified, or cited)"""
 
-class EditedReport(BaseModel):
-    """Result of editing a report based on fact-checking"""
-    edited_markdown: str = Field(
-        description="The edited report in markdown format"
-    )
-    edit_summary: str = Field(
-        description="Summary of changes made (claims removed, qualified, citations added)"
-    )
-    claims_removed_count: int = Field(
-        description="Number of claims removed or significantly changed"
-    )
-    citations_added_count: int = Field(
-        description="Number of inline citations added"
-    )
-
 editor_agent = Agent(
     name="Report Editor",
     instructions=INSTRUCTIONS,
-    model="gpt-5-mini",
-    output_type=EditedReport  # ← Changed from FinalReportData
+    model=EDITOR_MODEL,
+    output_type=EditedReport,  # ← Changed from FinalReportData
 )

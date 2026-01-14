@@ -1,9 +1,8 @@
 from agents import Agent, Runner, function_tool
-from pydantic import BaseModel, Field
 
+from config import QUALITY_AGENT_MAX_SEARCHES, QUALITY_MODEL
+from new_models import QualityReport
 from search_agent import search_agent
-
-QUALITY_AGENT_MAX_SEARCHES = 3
 
 QUALITY_INSTRUCTIONS = """You are a research quality and bias analysis assistant.
 
@@ -32,33 +31,6 @@ Output requirements:
 """
 
 
-class QualityReport(BaseModel):
-    scores: dict[str, int] = Field(
-        description=(
-            "Scores from 1-5 for source_diversity, credibility_tiers, "
-            "recency, author_expertise"
-        )
-    )
-    meta_scores: dict[str, int] = Field(
-        description=(
-            "Derived scores from 1-5 for geographic_balance, political_balance, "
-            "stance_distribution"
-        )
-    )
-    risk_flags: list[str] = Field(
-        description="Short, actionable bias or quality concerns"
-    )
-    summary: str = Field(
-        description="Narrative summary of the quality and bias assessment"
-    )
-    appendix_sources: list[str] = Field(
-        description="Evaluated sources with brief notes"
-    )
-    appendix_followups: list[str] = Field(
-        description="Suggested follow-up research questions or searches"
-    )
-
-
 @function_tool
 async def quality_web_search(queries: list[str]) -> list[dict[str, str]]:
     """Run up to three targeted searches for quality analysis."""
@@ -85,6 +57,6 @@ quality_agent = Agent(
     name="Quality & Bias Analysis Agent",
     instructions=QUALITY_INSTRUCTIONS,
     tools=[quality_web_search],
-    model="gpt-4o-mini",
+    model=QUALITY_MODEL,
     output_type=QualityReport,
 )
