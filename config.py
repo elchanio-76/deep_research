@@ -17,6 +17,11 @@ EDITOR_MODEL = "gpt-5-mini"
 EMAIL_MODEL = "gpt-4o-mini"
 VERIFICATION_TOOL_MODEL = "gpt-4o-mini"
 
+# E-mail config
+RECIPIENT = "lchanio@echyperion.com"
+SENDER = "proklos+ses@gmail.com"
+DEFAULT_AWS_REGION = "eu-north-1"
+
 AGENT_MODEL_MAP = {
     "planner_agent": PLANNER_MODEL,
     "search_agent": SEARCH_MODEL,

@@ -1,24 +1,36 @@
 import os
 from typing import Dict
 
-import sendgrid
-from sendgrid.helpers.mail import Email, Mail, Content, To
+import boto3
 from agents import Agent, function_tool
 
-from config import EMAIL_MODEL
+from config import (
+    DEFAULT_AWS_REGION,
+    EMAIL_MODEL,
+    RECIPIENT,
+    SENDER,
+)
 
 
 @function_tool
 def send_email(subject: str, html_body: str) -> Dict[str, str]:
-    """Send an email with the given subject and HTML body"""
-    sg = sendgrid.SendGridAPIClient(api_key=os.environ.get("SENDGRID_API_KEY"))
-    from_email = Email("lchanio@echyperion.com")  # put your verified sender here
-    to_email = To("proklos+dr@gmail.com")  # put your recipient here
-    content = Content("text/html", html_body)
-    mail = Mail(from_email, to_email, subject, content).get()
-    response = sg.client.mail.send.post(request_body=mail)
-    print("Email response", response.status_code)
-    return {"status": "success"}
+    """Send an email with the given subject and HTML body via SES."""
+    region_name = os.environ.get("AWS_DEFAULT_REGION", DEFAULT_AWS_REGION)
+    try:
+        client = boto3.client("ses", region_name=region_name)
+        response = client.send_email(
+            Source=SENDER,
+            Destination={"ToAddresses": [RECIPIENT]},
+            Message={
+                "Subject": {"Data": subject},
+                "Body": {"Html": {"Data": html_body}},
+            },
+        )
+        print("Email response", response.get("MessageId"))
+        return {"status": "success"}
+    except Exception as exc:
+        print("Email error", str(exc))
+        return {"status": "error", "message": str(exc)}
 
 
 INSTRUCTIONS = """You are able to send a nicely formatted HTML email based on a detailed report.
