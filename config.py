@@ -15,12 +15,17 @@ CLAIM_EXTRACTOR_MODEL = "gpt-5-mini"
 CITATION_MODEL = "gpt-5-mini"
 EDITOR_MODEL = "gpt-5-mini"
 EMAIL_MODEL = "gpt-4o-mini"
+SESSION_TITLE_MODEL = "gpt-5-mini"
 VERIFICATION_TOOL_MODEL = "gpt-4o-mini"
 
 # E-mail config
 RECIPIENT = "lchanio@echyperion.com"
 SENDER = "proklos+ses@gmail.com"
 DEFAULT_AWS_REGION = "eu-north-1"
+
+# Database config
+DEFAULT_DB_POOL_MIN = 1
+DEFAULT_DB_POOL_MAX = 5
 
 AGENT_MODEL_MAP = {
     "planner_agent": PLANNER_MODEL,
@@ -32,6 +37,7 @@ AGENT_MODEL_MAP = {
     "fact_check_planner": FACT_CHECK_PLANNER_MODEL,
     "editor_agent": EDITOR_MODEL,
     "email_agent": EMAIL_MODEL,
+    "session_title_agent": SESSION_TITLE_MODEL,
     "quick_verifier_agent": VERIFICATION_TOOL_MODEL,
     "thorough_verifier_agent": VERIFICATION_TOOL_MODEL,
     "red_team_challenger_agent": VERIFICATION_TOOL_MODEL,

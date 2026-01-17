@@ -1,8 +1,12 @@
 import asyncio
+import json
+import uuid
+from collections.abc import Mapping
 
 from agents import Runner, Usage, gen_trace_id, trace
 
 from claim_extraction_agent import claim_extractor
+from db import init_db
 from config import (
     AGENT_MODEL_MAP,
     DEFAULT_NUM_SEARCHES,
@@ -14,6 +18,7 @@ from config import (
 from editor_agent import editor_agent
 from email_agent import email_agent
 from fact_check_planner_agent import fact_check_planner
+from session_title_agent import session_title_agent
 from new_models import (
     EditedReport,
     ExtractedClaims,
@@ -42,6 +47,247 @@ class ResearchManager:
         self.input_tokens: int = 0
         self.output_tokens: int = 0
         self.cost: float = 0.0
+        self.current_session_id: uuid.UUID | None = None
+
+    def _usage_snapshot(self) -> dict[str, object]:
+        return self.session_usage.model_dump()
+
+    def _cost_summary_snapshot(self) -> dict[str, float | int]:
+        total_tool_calls = sum(self.session_usage.total_tool_calls.values())
+        total_cost = self.calculate_total_cost()
+        return {
+            "total_input_tokens": self.session_usage.total_input_tokens,
+            "total_output_tokens": self.session_usage.total_output_tokens,
+            "total_tool_calls": total_tool_calls,
+            "total_cost": total_cost,
+        }
+
+    def _normalize_json_payload(self, payload: object | None) -> dict:
+        if payload is None:
+            return {}
+        if isinstance(payload, dict):
+            return payload
+        if isinstance(payload, str):
+            try:
+                decoded = json.loads(payload)
+            except json.JSONDecodeError:
+                return {}
+            return decoded if isinstance(decoded, dict) else {}
+        if isinstance(payload, Mapping):
+            return dict(payload)
+        return {}
+
+    async def _get_pool(self):
+        return await init_db()
+
+    async def _generate_session_header(
+        self, initial_prompt: str, report_summary: str
+    ) -> str:
+        input_text = (
+            f"INITIAL PROMPT:\n{initial_prompt}\n\nREPORT SUMMARY:\n{report_summary}"
+        )
+        result = await Runner.run(session_title_agent, input_text)
+        self.update_usage_stats("session_title_agent", result.context_wrapper.usage)
+        return result.final_output.title
+
+    async def _update_session(
+        self, header: str | None = None, report_markdown: str | None = None
+    ) -> None:
+        if self.current_session_id is None:
+            return
+        pool = await self._get_pool()
+        usage_snapshot = self._usage_snapshot()
+        cost_snapshot = self._cost_summary_snapshot()
+        async with pool.acquire() as connection:
+            await connection.execute(
+                """
+                UPDATE sessions
+                SET updated_at = NOW(),
+                    last_activity_at = NOW(),
+                    header = COALESCE($2, header),
+                    report_markdown = COALESCE($3, report_markdown),
+                    usage_jsonb = $4,
+                    cost_summary_jsonb = $5
+                WHERE id = $1
+                """,
+                self.current_session_id,
+                header,
+                report_markdown,
+                usage_snapshot,
+                cost_snapshot,
+            )
+
+    async def _insert_message(
+        self,
+        role: str,
+        content: str,
+        message_type: str,
+        agent_name: str | None = None,
+        usage: dict | None = None,
+    ) -> None:
+        if self.current_session_id is None:
+            return
+        pool = await self._get_pool()
+        message_id = uuid.uuid4()
+        usage_payload = usage if isinstance(usage, dict) else None
+        async with pool.acquire() as connection:
+            await connection.execute(
+                """
+                INSERT INTO messages (
+                    id, session_id, role, content, message_type, agent_name, usage_jsonb
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                """,
+                message_id,
+                self.current_session_id,
+                role,
+                content,
+                message_type,
+                agent_name,
+                usage_payload,
+            )
+        await self._update_session()
+
+    async def _create_session(self, initial_prompt: str) -> None:
+        pool = await self._get_pool()
+        session_id = uuid.uuid4()
+        self.current_session_id = session_id
+        usage_snapshot = self._usage_snapshot()
+        cost_snapshot = self._cost_summary_snapshot()
+        async with pool.acquire() as connection:
+            await connection.execute(
+                """
+                INSERT INTO sessions (
+                    id, header, initial_prompt, report_markdown, usage_jsonb, cost_summary_jsonb
+                ) VALUES ($1, $2, $3, $4, $5, $6)
+                """,
+                session_id,
+                None,
+                initial_prompt,
+                None,
+                usage_snapshot,
+                cost_snapshot,
+            )
+            await connection.execute(
+                """
+                INSERT INTO messages (
+                    id, session_id, role, content, message_type, agent_name, usage_jsonb
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                """,
+                uuid.uuid4(),
+                session_id,
+                "user",
+                initial_prompt,
+                "report",
+                None,
+                None,
+            )
+
+    def reset_session_state(self) -> None:
+        self.report = None
+        self.search_results = []
+        self.last_query = None
+        self.session_usage = SessionUsage()
+        self.input_tokens = 0
+        self.output_tokens = 0
+        self.cost = 0.0
+        self.current_session_id = None
+
+    def _format_cost_summary_from_snapshot(self, snapshot: object | None) -> str:
+        snapshot_dict = self._normalize_json_payload(snapshot)
+        if not snapshot_dict:
+            return "### Session Cost Summary\n- No cost data available\n"
+        return (
+            "### Session Cost Summary\n"
+            f"- Total input tokens: {snapshot_dict.get('total_input_tokens', 0)}\n"
+            f"- Total output tokens: {snapshot_dict.get('total_output_tokens', 0)}\n"
+            f"- Total tool calls: {snapshot_dict.get('total_tool_calls', 0)}\n"
+            f"- Total running cost: ${snapshot_dict.get('total_cost', 0.0):.4f}\n"
+        )
+
+    async def list_sessions(self) -> list[tuple[str, str]]:
+        pool = await self._get_pool()
+        async with pool.acquire() as connection:
+            rows = await connection.fetch(
+                """
+                SELECT id, header, initial_prompt
+                FROM sessions
+                ORDER BY last_activity_at DESC
+                """
+            )
+        choices: list[tuple[str, str]] = []
+        for row in rows:
+            label = row["header"] or row["initial_prompt"] or "Untitled session"
+            label = label.strip()
+            if len(label) > 80:
+                label = f"{label[:77]}..."
+            choices.append((label, str(row["id"])))
+        return choices
+
+    async def load_session(
+        self, session_id: str
+    ) -> tuple[str, str, list[tuple[str, str]], str]:
+        pool = await self._get_pool()
+        session_uuid = uuid.UUID(session_id)
+        async with pool.acquire() as connection:
+            session_row = await connection.fetchrow(
+                """
+                SELECT id, header, initial_prompt, report_markdown, usage_jsonb, cost_summary_jsonb
+                FROM sessions
+                WHERE id = $1
+                """,
+                session_uuid,
+            )
+            message_rows = await connection.fetch(
+                """
+                SELECT role, content
+                FROM messages
+                WHERE session_id = $1 AND message_type = 'chat'
+                ORDER BY created_at
+                """,
+                session_uuid,
+            )
+        if session_row is None:
+            return "", "", [], ""
+        self.current_session_id = session_uuid
+        self.last_query = session_row["initial_prompt"]
+        usage_snapshot = self._normalize_json_payload(session_row["usage_jsonb"])
+        cost_snapshot = self._normalize_json_payload(session_row["cost_summary_jsonb"])
+        try:
+            self.session_usage = SessionUsage.model_validate(usage_snapshot)
+        except Exception:
+            self.session_usage = SessionUsage()
+        report_markdown = session_row["report_markdown"] or ""
+        if report_markdown:
+            self.report = FinalReportData(
+                short_summary=session_row["header"] or "",
+                markdown_report=report_markdown,
+                follow_up_questions=[],
+                verified_claims=VerifiedClaims(claims=[]),
+                total_claims_checked=0,
+                dubious_claims_count=0,
+                was_edited=False,
+            )
+        else:
+            self.report = None
+        history: list[tuple[str, str]] = []
+        pending_user: str | None = None
+        for row in message_rows:
+            role = row["role"]
+            content = row["content"]
+            if role == "user":
+                if pending_user is not None:
+                    history.append((pending_user, ""))
+                pending_user = content
+            else:
+                if pending_user is None:
+                    history.append(("", content))
+                else:
+                    history.append((pending_user, content))
+                    pending_user = None
+        if pending_user is not None:
+            history.append((pending_user, ""))
+        cost_summary = self._format_cost_summary_from_snapshot(cost_snapshot)
+        return report_markdown, cost_summary, history, self.last_query or ""
 
     async def edit_report(
         self, original_report: str, verified_claims: VerifiedClaims
@@ -91,7 +337,9 @@ class ResearchManager:
         self.input_tokens = 0
         self.output_tokens = 0
         self.cost = 0.0
+        self.current_session_id = None
         set_session_usage(self.session_usage)
+        await self._create_session(query)
         trace_id = gen_trace_id()
         with trace("Research trace", trace_id=trace_id):
             print(
@@ -158,6 +406,21 @@ class ResearchManager:
 
             # Step 5: Store and send
             self.report = final_report
+            session_header = await self._generate_session_header(
+                query, writer_output.short_summary
+            )
+            await self._insert_message(
+                role="assistant",
+                content=final_report.markdown_report,
+                message_type="report",
+                agent_name=(
+                    "editor_agent" if final_report.was_edited else "writer_agent"
+                ),
+                usage=self._usage_snapshot(),
+            )
+            await self._update_session(
+                header=session_header, report_markdown=final_report.markdown_report
+            )
 
             yield "Sending email...\n"
             await self.send_email(final_report)
@@ -171,6 +434,24 @@ class ResearchManager:
             yield "No report available. Please run a research query first."
             return
 
+        original_message = message
+        if self.current_session_id is None:
+            await self._create_session(self.last_query or "Unknown")
+            if self.report is not None:
+                await self._insert_message(
+                    role="assistant",
+                    content=self.report.markdown_report,
+                    message_type="report",
+                    agent_name="writer_agent",
+                    usage=self._usage_snapshot(),
+                )
+                await self._update_session(report_markdown=self.report.markdown_report)
+
+        await self._insert_message(
+            role="user",
+            content=original_message,
+            message_type="chat",
+        )
         set_session_usage(self.session_usage)
         trace_id = gen_trace_id()
         quality_requested = is_quality_request(message)
@@ -204,6 +485,13 @@ class ResearchManager:
                 message,
             )
             self.update_usage_stats("qa_agent", result.context_wrapper.usage)
+            await self._insert_message(
+                role="assistant",
+                content=result.final_output.answer,
+                message_type="chat",
+                agent_name="qa_agent",
+                usage=self._usage_snapshot(),
+            )
             yield result.final_output.answer
 
     def calculate_total_cost(self) -> float:

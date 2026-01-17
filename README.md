@@ -150,9 +150,11 @@ The application provides a clean web interface with two main sections:
 2. **Environment Configuration**:
    Create a `.env` file with:
 
-   ```
-   OPENAI_API_KEY=your_api_key_here
-   ```
+```
+OPENAI_API_KEY=your_api_key_here
+DATABASE_URL=postgresql://user:password@localhost:5432/deep_research
+```
+
 
 3. **Run Application**:
 
