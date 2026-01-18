@@ -13,21 +13,46 @@ async def run(query: str):
         yield chunk, research_manager.get_cost_summary(), []
 
 
-async def chat(message: str, history: list[tuple[str, str]]):
+def _messages_to_pairs(messages: list[dict[str, str]]) -> list[tuple[str, str]]:
+    history: list[tuple[str, str]] = []
+    pending_user: str | None = None
+    for message in messages:
+        role = message.get("role")
+        content = message.get("content", "")
+        if role == "user":
+            if pending_user is not None:
+                history.append((pending_user, ""))
+            pending_user = content
+        else:
+            if pending_user is None:
+                history.append(("", content))
+            else:
+                history.append((pending_user, content))
+                pending_user = None
+    if pending_user is not None:
+        history.append((pending_user, ""))
+    return history
+
+
+async def chat(message: str, history: list[dict[str, str]]):
     if not message:
         yield history, ""
         return
-    prior_history = history or []
-    updated_history = list(prior_history)
-    updated_history.append((message, ""))
-    yield updated_history, ""
+    prior_messages = history or []
+    updated_messages = list(prior_messages)
+    updated_messages.append({"role": "user", "content": message})
+    yield updated_messages, ""
+    prior_history = _messages_to_pairs(prior_messages)
     async for chunk in research_manager.chat(message, prior_history):
-        last_user, last_assistant = updated_history[-1]
-        if last_assistant:
-            updated_history[-1] = (last_user, f"{last_assistant}\n{chunk}")
+        if updated_messages and updated_messages[-1].get("role") == "assistant":
+            last_content = updated_messages[-1].get("content", "")
+            updated_messages[-1] = {
+                "role": "assistant",
+                "content": f"{last_content}\n{chunk}" if last_content else chunk,
+            }
         else:
-            updated_history[-1] = (last_user, chunk)
-        yield updated_history, ""
+            updated_messages.append({"role": "assistant", "content": chunk})
+        yield updated_messages, ""
 
 
 def refresh_cost() -> str:
@@ -75,7 +100,7 @@ with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
             refresh_cost_button = gr.Button("Refresh Cost")
 
             gr.Markdown("## Q&A")
-            chatbot = gr.Chatbot(label="Q&A")
+            chatbot = gr.Chatbot(label="Q&A", type="messages")
             chat_input = gr.Textbox(label="Ask a question")
             chat_button = gr.Button("Send")
 

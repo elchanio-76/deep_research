@@ -113,8 +113,8 @@ class ResearchManager:
                 self.current_session_id,
                 header,
                 report_markdown,
-                usage_snapshot,
-                cost_snapshot,
+                json.dumps(usage_snapshot),
+                json.dumps(cost_snapshot),
             )
 
     async def _insert_message(
@@ -129,7 +129,7 @@ class ResearchManager:
             return
         pool = await self._get_pool()
         message_id = uuid.uuid4()
-        usage_payload = usage if isinstance(usage, dict) else None
+        usage_payload = json.dumps(usage) if isinstance(usage, dict) else None
         async with pool.acquire() as connection:
             await connection.execute(
                 """
@@ -164,8 +164,8 @@ class ResearchManager:
                 None,
                 initial_prompt,
                 None,
-                usage_snapshot,
-                cost_snapshot,
+                json.dumps(usage_snapshot),
+                json.dumps(cost_snapshot),
             )
             await connection.execute(
                 """
@@ -225,7 +225,7 @@ class ResearchManager:
 
     async def load_session(
         self, session_id: str
-    ) -> tuple[str, str, list[tuple[str, str]], str]:
+    ) -> tuple[str, str, list[dict[str, str]], str]:
         pool = await self._get_pool()
         session_uuid = uuid.UUID(session_id)
         async with pool.acquire() as connection:
@@ -269,23 +269,14 @@ class ResearchManager:
             )
         else:
             self.report = None
-        history: list[tuple[str, str]] = []
-        pending_user: str | None = None
+        history: list[dict[str, str]] = []
         for row in message_rows:
-            role = row["role"]
-            content = row["content"]
-            if role == "user":
-                if pending_user is not None:
-                    history.append((pending_user, ""))
-                pending_user = content
-            else:
-                if pending_user is None:
-                    history.append(("", content))
-                else:
-                    history.append((pending_user, content))
-                    pending_user = None
-        if pending_user is not None:
-            history.append((pending_user, ""))
+            history.append(
+                {
+                    "role": row["role"],
+                    "content": row["content"],
+                }
+            )
         cost_summary = self._format_cost_summary_from_snapshot(cost_snapshot)
         return report_markdown, cost_summary, history, self.last_query or ""
 
