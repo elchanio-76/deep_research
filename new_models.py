@@ -59,6 +59,23 @@ class WebSearchPlan(BaseModel):
     )
 
 
+SearchPhase = Literal["deep_dive", "gap_fill"]
+
+
+class SearchPhasePlan(BaseModel):
+    phase: SearchPhase = Field(description="Adaptive phase name")
+    rationale: str = Field(description="Why these searches were selected")
+    searches: list[WebSearchItem] = Field(
+        description="Searches to run in this adaptive phase"
+    )
+
+
+class AdaptiveSearchPlan(BaseModel):
+    total_budget: int = Field(description="Total search budget across phases")
+    remaining_budget: int = Field(description="Remaining searches after initial phase")
+    phases: list[SearchPhasePlan] = Field(description="Planned adaptive search phases")
+
+
 class WriterOutput(BaseModel):
     short_summary: str = Field(
         description="A short 2-3 sentence summary of the findings."

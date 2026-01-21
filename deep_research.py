@@ -1,5 +1,6 @@
 import gradio as gr
 from dotenv import load_dotenv
+from config import SEARCH_MODE_DEFAULT
 from research_manager import ResearchManager
 
 load_dotenv(override=True)
@@ -8,8 +9,8 @@ load_dotenv(override=True)
 research_manager = ResearchManager()
 
 
-async def run(query: str):
-    async for chunk in research_manager.run(query):
+async def run(query: str, search_mode: str):
+    async for chunk in research_manager.run(query, search_mode):
         yield chunk, research_manager.get_cost_summary(), []
 
 
@@ -66,24 +67,30 @@ async def refresh_sessions():
 
 async def load_session(session_id: str):
     if not session_id:
-        return "", "", [], "", None
+        return "", "", [], "", SEARCH_MODE_DEFAULT, None
     (
         report_markdown,
         cost_text,
         history,
         initial_prompt,
+        search_mode,
     ) = await research_manager.load_session(session_id)
-    return report_markdown, cost_text, history, initial_prompt, session_id
+    return report_markdown, cost_text, history, initial_prompt, search_mode, session_id
 
 
 def new_session():
     research_manager.reset_session_state()
-    return "", "", [], "", None, gr.update(value=None)
+    return "", "", [], "", SEARCH_MODE_DEFAULT, None, gr.update(value=None)
 
 
 with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
     gr.Markdown("# Deep Research")
     session_state = gr.State(None)
+    search_mode_choices = {
+        "No Adaptive Search": "no_adaptive",
+        "Deep Dive (+3 searches)": "deep_dive",
+        "Deep Dive + Gap-Filling (2x budget)": "deep_dive_gap_fill",
+    }
 
     with gr.Row():
         with gr.Column(scale=1):
@@ -94,6 +101,13 @@ with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
 
         with gr.Column(scale=3):
             query_textbox = gr.Textbox(label="What topic would you like to research?")
+            search_mode = gr.Dropdown(
+                label="Search Mode",
+                choices=[
+                    (label, value) for label, value in search_mode_choices.items()
+                ],
+                value=SEARCH_MODE_DEFAULT,
+            )
             run_button = gr.Button("Run", variant="primary")
             report = gr.Markdown(label="Report")
             cost_summary = gr.Markdown(label="Session Cost Summary")
@@ -105,10 +119,14 @@ with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
             chat_button = gr.Button("Send")
 
     run_button.click(
-        fn=run, inputs=query_textbox, outputs=[report, cost_summary, chatbot]
+        fn=run,
+        inputs=[query_textbox, search_mode],
+        outputs=[report, cost_summary, chatbot],
     )
     query_textbox.submit(
-        fn=run, inputs=query_textbox, outputs=[report, cost_summary, chatbot]
+        fn=run,
+        inputs=[query_textbox, search_mode],
+        outputs=[report, cost_summary, chatbot],
     )
     refresh_cost_button.click(fn=refresh_cost, inputs=None, outputs=cost_summary)
 
@@ -126,7 +144,14 @@ with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
     session_radio.change(
         fn=load_session,
         inputs=session_radio,
-        outputs=[report, cost_summary, chatbot, query_textbox, session_state],
+        outputs=[
+            report,
+            cost_summary,
+            chatbot,
+            query_textbox,
+            search_mode,
+            session_state,
+        ],
     )
     new_session_button.click(
         fn=new_session,
@@ -136,9 +161,11 @@ with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
             cost_summary,
             chatbot,
             query_textbox,
+            search_mode,
             session_state,
             session_radio,
         ],
     )
 
-ui.launch(inbrowser=True)
+if __name__ == "__main__":
+    ui.launch(inbrowser=True)

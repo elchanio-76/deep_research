@@ -8,6 +8,7 @@ GROUP_VERIFY_CLAIM_SNIPPET_LEN = 200
 PLANNER_MODEL = "gpt-5"
 QUALITY_MODEL = "gpt-5"
 FACT_CHECK_PLANNER_MODEL = "gpt-5"
+ADAPTIVE_SEARCH_MODEL = "gpt-5-mini"
 SEARCH_MODEL = "gpt-4o-mini"
 WRITER_MODEL = "gpt-5-mini"
 QA_MODEL = "gpt-5-mini"
@@ -27,6 +28,14 @@ DEFAULT_AWS_REGION = "eu-north-1"
 DEFAULT_DB_POOL_MIN = 1
 DEFAULT_DB_POOL_MAX = 5
 
+# Search mode config
+SEARCH_MODE_DEFAULT = "no_adaptive"
+SEARCH_MODE_OPTIONS = [
+    "no_adaptive",
+    "deep_dive",
+    "deep_dive_gap_fill",
+]
+
 AGENT_MODEL_MAP = {
     "planner_agent": PLANNER_MODEL,
     "search_agent": SEARCH_MODEL,
@@ -38,6 +47,7 @@ AGENT_MODEL_MAP = {
     "editor_agent": EDITOR_MODEL,
     "email_agent": EMAIL_MODEL,
     "session_title_agent": SESSION_TITLE_MODEL,
+    "adaptive_search_planner": ADAPTIVE_SEARCH_MODEL,
     "quick_verifier_agent": VERIFICATION_TOOL_MODEL,
     "thorough_verifier_agent": VERIFICATION_TOOL_MODEL,
     "red_team_challenger_agent": VERIFICATION_TOOL_MODEL,

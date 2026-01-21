@@ -13,13 +13,17 @@ from config import (
     FACT_CHECK_CONFIDENCE_THRESHOLD,
     MODEL_COSTS,
     PLANNER_MODEL,
+    SEARCH_MODE_DEFAULT,
+    SEARCH_MODE_OPTIONS,
     TOOL_COSTS,
 )
 from editor_agent import editor_agent
 from email_agent import email_agent
+from adaptive_search_planner import adaptive_search_planner
 from fact_check_planner_agent import fact_check_planner
 from session_title_agent import session_title_agent
 from new_models import (
+    AdaptiveSearchPlan,
     EditedReport,
     ExtractedClaims,
     FactCheckingResult,
@@ -48,6 +52,7 @@ class ResearchManager:
         self.output_tokens: int = 0
         self.cost: float = 0.0
         self.current_session_id: uuid.UUID | None = None
+        self.search_mode: str = SEARCH_MODE_DEFAULT
 
     def _usage_snapshot(self) -> dict[str, object]:
         return self.session_usage.model_dump()
@@ -90,8 +95,79 @@ class ResearchManager:
         self.update_usage_stats("session_title_agent", result.context_wrapper.usage)
         return result.final_output.title
 
+    def _get_search_budget(self, search_mode: str) -> int:
+        if search_mode == "deep_dive":
+            return DEFAULT_NUM_SEARCHES + 3
+        if search_mode == "deep_dive_gap_fill":
+            return DEFAULT_NUM_SEARCHES * 2
+        return DEFAULT_NUM_SEARCHES
+
+    async def _plan_adaptive_searches(
+        self,
+        query: str,
+        search_mode: str,
+        search_plan: WebSearchPlan,
+        search_results: list[str],
+    ) -> AdaptiveSearchPlan | None:
+        total_budget = self._get_search_budget(search_mode)
+        remaining_budget = max(total_budget - len(search_plan.searches), 0)
+        if remaining_budget <= 0:
+            return None
+        search_lines = "\n".join(
+            f"- {item.query} ({item.reason})" for item in search_plan.searches
+        )
+        result_lines = "\n".join(search_results[:10])
+        input_text = f"""QUERY:
+{query}
+
+SEARCH MODE:
+{search_mode}
+
+TOTAL SEARCH BUDGET:
+{total_budget}
+
+REMAINING SEARCH BUDGET:
+{remaining_budget}
+
+INITIAL SEARCHES:
+{search_lines}
+
+INITIAL SEARCH RESULTS (truncated):
+{result_lines}
+
+Plan adaptive searches for the remaining budget. If search_mode is deep_dive,
+return only a deep_dive phase. If search_mode is deep_dive_gap_fill, return
+both deep_dive and gap_fill phases. Ensure total searches across phases do not
+exceed the remaining budget.
+"""
+        result = await Runner.run(adaptive_search_planner, input_text)
+        self.update_usage_stats("adaptive_search_planner", result.context_wrapper.usage)
+        return result.final_output_as(AdaptiveSearchPlan)
+
+    async def _run_adaptive_searches(
+        self, plan: AdaptiveSearchPlan | None
+    ) -> list[str]:
+        if plan is None:
+            return []
+        remaining_budget = plan.remaining_budget
+        additional_results: list[str] = []
+        for phase in plan.phases:
+            if remaining_budget <= 0:
+                break
+            phase_searches = phase.searches[:remaining_budget]
+            if not phase_searches:
+                continue
+            phase_plan = WebSearchPlan(searches=phase_searches)
+            phase_results = await self.perform_searches(phase_plan)
+            additional_results.extend(phase_results)
+            remaining_budget -= len(phase_searches)
+        return additional_results
+
     async def _update_session(
-        self, header: str | None = None, report_markdown: str | None = None
+        self,
+        header: str | None = None,
+        report_markdown: str | None = None,
+        search_mode: str | None = None,
     ) -> None:
         if self.current_session_id is None:
             return
@@ -106,13 +182,15 @@ class ResearchManager:
                     last_activity_at = NOW(),
                     header = COALESCE($2, header),
                     report_markdown = COALESCE($3, report_markdown),
-                    usage_jsonb = $4,
-                    cost_summary_jsonb = $5
+                    search_mode = COALESCE($4, search_mode),
+                    usage_jsonb = $5,
+                    cost_summary_jsonb = $6
                 WHERE id = $1
                 """,
                 self.current_session_id,
                 header,
                 report_markdown,
+                search_mode,
                 json.dumps(usage_snapshot),
                 json.dumps(cost_snapshot),
             )
@@ -145,9 +223,9 @@ class ResearchManager:
                 agent_name,
                 usage_payload,
             )
-        await self._update_session()
+        await self._update_session(search_mode=self.search_mode)
 
-    async def _create_session(self, initial_prompt: str) -> None:
+    async def _create_session(self, initial_prompt: str, search_mode: str) -> None:
         pool = await self._get_pool()
         session_id = uuid.uuid4()
         self.current_session_id = session_id
@@ -157,13 +235,20 @@ class ResearchManager:
             await connection.execute(
                 """
                 INSERT INTO sessions (
-                    id, header, initial_prompt, report_markdown, usage_jsonb, cost_summary_jsonb
-                ) VALUES ($1, $2, $3, $4, $5, $6)
+                    id,
+                    header,
+                    initial_prompt,
+                    report_markdown,
+                    search_mode,
+                    usage_jsonb,
+                    cost_summary_jsonb
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7)
                 """,
                 session_id,
                 None,
                 initial_prompt,
                 None,
+                search_mode,
                 json.dumps(usage_snapshot),
                 json.dumps(cost_snapshot),
             )
@@ -191,6 +276,7 @@ class ResearchManager:
         self.output_tokens = 0
         self.cost = 0.0
         self.current_session_id = None
+        self.search_mode = SEARCH_MODE_DEFAULT
 
     def _format_cost_summary_from_snapshot(self, snapshot: object | None) -> str:
         snapshot_dict = self._normalize_json_payload(snapshot)
@@ -225,13 +311,19 @@ class ResearchManager:
 
     async def load_session(
         self, session_id: str
-    ) -> tuple[str, str, list[dict[str, str]], str]:
+    ) -> tuple[str, str, list[dict[str, str]], str, str]:
         pool = await self._get_pool()
         session_uuid = uuid.UUID(session_id)
         async with pool.acquire() as connection:
             session_row = await connection.fetchrow(
                 """
-                SELECT id, header, initial_prompt, report_markdown, usage_jsonb, cost_summary_jsonb
+                SELECT id,
+                       header,
+                       initial_prompt,
+                       report_markdown,
+                       search_mode,
+                       usage_jsonb,
+                       cost_summary_jsonb
                 FROM sessions
                 WHERE id = $1
                 """,
@@ -247,9 +339,10 @@ class ResearchManager:
                 session_uuid,
             )
         if session_row is None:
-            return "", "", [], ""
+            return "", "", [], "", SEARCH_MODE_DEFAULT
         self.current_session_id = session_uuid
         self.last_query = session_row["initial_prompt"]
+        self.search_mode = session_row["search_mode"] or SEARCH_MODE_DEFAULT
         usage_snapshot = self._normalize_json_payload(session_row["usage_jsonb"])
         cost_snapshot = self._normalize_json_payload(session_row["cost_summary_jsonb"])
         try:
@@ -278,7 +371,13 @@ class ResearchManager:
                 }
             )
         cost_summary = self._format_cost_summary_from_snapshot(cost_snapshot)
-        return report_markdown, cost_summary, history, self.last_query or ""
+        return (
+            report_markdown,
+            cost_summary,
+            history,
+            self.last_query or "",
+            self.search_mode,
+        )
 
     async def edit_report(
         self, original_report: str, verified_claims: VerifiedClaims
@@ -321,7 +420,7 @@ class ResearchManager:
 
     # research_manager.py - REVISED run() method
     # revisions: update flow to include intelligent fact-checking and editing of report
-    async def run(self, query: str):
+    async def run(self, query: str, search_mode: str = SEARCH_MODE_DEFAULT):
         """Run the deep research process, yielding status updates and final report"""
         self.last_query = query
         self.session_usage = SessionUsage()
@@ -329,8 +428,11 @@ class ResearchManager:
         self.output_tokens = 0
         self.cost = 0.0
         self.current_session_id = None
+        self.search_mode = (
+            search_mode if search_mode in SEARCH_MODE_OPTIONS else SEARCH_MODE_DEFAULT
+        )
         set_session_usage(self.session_usage)
-        await self._create_session(query)
+        await self._create_session(query, self.search_mode)
         trace_id = gen_trace_id()
         with trace("Research trace", trace_id=trace_id):
             print(
@@ -345,6 +447,18 @@ class ResearchManager:
 
             yield "Executing searches...\n"
             search_results = await self.perform_searches(search_plan)
+
+            adaptive_plan = None
+            if self.search_mode != SEARCH_MODE_DEFAULT:
+                adaptive_plan = await self._plan_adaptive_searches(
+                    query, self.search_mode, search_plan, search_results
+                )
+
+            if adaptive_plan:
+                yield "Executing adaptive searches...\n"
+                adaptive_results = await self._run_adaptive_searches(adaptive_plan)
+                search_results.extend(adaptive_results)
+
             self.search_results = search_results
 
             # Step 2: Generate initial report
@@ -410,7 +524,9 @@ class ResearchManager:
                 usage=self._usage_snapshot(),
             )
             await self._update_session(
-                header=session_header, report_markdown=final_report.markdown_report
+                header=session_header,
+                report_markdown=final_report.markdown_report,
+                search_mode=self.search_mode,
             )
 
             yield "Sending email...\n"
@@ -427,7 +543,10 @@ class ResearchManager:
 
         original_message = message
         if self.current_session_id is None:
-            await self._create_session(self.last_query or "Unknown")
+            await self._create_session(
+                self.last_query or "Unknown",
+                self.search_mode or SEARCH_MODE_DEFAULT,
+            )
             if self.report is not None:
                 await self._insert_message(
                     role="assistant",
@@ -436,7 +555,10 @@ class ResearchManager:
                     agent_name="writer_agent",
                     usage=self._usage_snapshot(),
                 )
-                await self._update_session(report_markdown=self.report.markdown_report)
+                await self._update_session(
+                    report_markdown=self.report.markdown_report,
+                    search_mode=self.search_mode,
+                )
 
         await self._insert_message(
             role="user",

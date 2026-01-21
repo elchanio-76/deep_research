@@ -2,14 +2,17 @@
 
 This document outlines potential extensions to enhance the deep research assistant using the OpenAI Agents SDK.
 
-## 1. Citation & Fact-Checking Agent 
+## 1. Citation & Fact-Checking Agent
+
 *Implemented, multiple tools with adaptive strategies and intelligent scoring*  
 *model below is obsolete, check README.md for actual implementation details*
 
 ### Overview
+
 Validates claims in generated reports by cross-referencing sources and adds proper academic citations.
 
 ### Implementation Plan
+
 - **New Agent**: `citation_agent.py`
 - **Output Model**: `CitationData` with verified claims, citations, and confidence scores
 - **Tools**: Enhanced web search for fact verification
@@ -21,6 +24,7 @@ Validates claims in generated reports by cross-referencing sources and adds prop
   - Flag unverified or disputed claims
 
 ### Files to Create/Modify
+
 - `citation_agent.py` - New agent implementation
 - `research_manager.py` - Add citation verification step
 - Update `ReportData` model to include citations
@@ -28,9 +32,11 @@ Validates claims in generated reports by cross-referencing sources and adds prop
 ## 2. Multi-Format Export Agent
 
 ### Overview
+
 Converts research reports into various professional formats (PDF, PowerPoint, Word) with appropriate styling.
 
 ### Implementation Plan
+
 - **New Agent**: `export_agent.py`
 - **Output Model**: `ExportData` with format type and file paths
 - **Tools**: Document generation functions (PDF, DOCX, PPTX libraries)
@@ -42,6 +48,7 @@ Converts research reports into various professional formats (PDF, PowerPoint, Wo
   - Add charts/visualizations where appropriate
 
 ### Files to Create/Modify
+
 - `export_agent.py` - New agent with document generation tools
 - `deep_research.py` - Add export buttons to UI
 - `requirements.txt` - Add document libraries (reportlab, python-docx, python-pptx)
@@ -49,9 +56,11 @@ Converts research reports into various professional formats (PDF, PowerPoint, Wo
 ## 3. Research Memory & Knowledge Base Agent
 
 ### Overview
+
 Maintains persistent storage of research findings and identifies connections between topics.
 
 ### Implementation Plan
+
 - **New Agent**: `memory_agent.py`
 - **Output Model**: `MemoryData` with stored research and connections
 - **Tools**: Vector database operations (ChromaDB or similar)
@@ -63,17 +72,21 @@ Maintains persistent storage of research findings and identifies connections bet
   - Suggest follow-up research based on history
 
 ### Files to Create/Modify
+
 - `memory_agent.py` - New agent with vector DB tools
 - `research_manager.py` - Add memory check/store steps
 - Database setup for persistent storage
 
 ## 4. Interactive Q&A Agent
+
 *Implemented*
 
 ### Overview
+
 Provides conversational interface for follow-up questions about completed research reports.
 
 ### Implementation Plan
+
 - **New Agent**: `qa_agent.py`
 - **Output Model**: `QAResponse` with answers and source references
 - **Tools**: Report context search, targeted web search
@@ -85,17 +98,21 @@ Provides conversational interface for follow-up questions about completed resear
   - Maintain conversation context
 
 ### Files to Create/Modify
+
 - `qa_agent.py` - New conversational agent
 - `deep_research.py` - Add chat interface component
 - `research_manager.py` - Add Q&A session management
 
 ## 5. Research Quality & Bias Analysis Agent
+
 *Implemented (user-triggered via Q&A)*
 
 ### Overview
+
 Evaluates research quality, identifies potential biases, and suggests improvements to research methodology.
 
 ### Implementation Plan
+
 - **New Agent**: `quality_agent.py`
 - **Output Model**: `QualityReport` with bias analysis and recommendations
 - **Tools**: Targeted web searches (max 3) for credibility/recency/author checks
@@ -107,6 +124,7 @@ Evaluates research quality, identifies potential biases, and suggests improvemen
   - Flag risks and suggest follow-up research questions
 
 ### Files to Create/Modify
+
 - `quality_agent.py` - Quality and bias analysis agent
 - `qa_agent.py` - Triggers and tool integration
 - `research_manager.py` - Provide report/query/search context for Q&A
@@ -115,9 +133,11 @@ Evaluates research quality, identifies potential biases, and suggests improvemen
 ## 6. Advanced Search Planning & Optimization
 
 ### Overview
+
 Implements progressive search refinement and intelligent search strategy to maximize information quality within budget constraints.
 
 ### Implementation Plan
+
 - **New Components**: `AdaptiveSearchPlanner`, `SearchQualityScorer`, `OutlinePlannerAgent`
 - **Output Models**: `ReportOutline`, `SearchResult` with quality metrics, `SearchCluster`
 - **Tools**: Semantic clustering, source diversity tracking, real-time search optimization
@@ -130,6 +150,7 @@ Implements progressive search refinement and intelligent search strategy to maxi
   - Source diversity requirements and tracking
 
 ### Files to Create/Modify
+
 - `adaptive_search_planner.py` - New multi-phase search orchestrator
 - `search_quality_scorer.py` - Search result evaluation and ranking
 - `outline_planner_agent.py` - Report structure planning before writing
@@ -139,9 +160,11 @@ Implements progressive search refinement and intelligent search strategy to maxi
 ## 7. Cost-Effective Search Alternatives
 
 ### Overview
+
 Reduces search costs by 50-80% through intelligent search routing and alternative search providers while maintaining quality.
 
 ### Implementation Plan
+
 - **New Components**: `HybridSearchManager`, `SearchCache`, `CostEffectiveSearchTool`
 - **Output Models**: Enhanced search results with cost tracking
 - **Tools**: SerpAPI, Bing Search API, DuckDuckGo integration, search result caching
@@ -154,6 +177,7 @@ Reduces search costs by 50-80% through intelligent search routing and alternativ
   - Fallback search providers for different priority levels
 
 ### Files to Create/Modify
+
 - `hybrid_search_manager.py` - Multi-provider search routing
 - `search_cache.py` - Query caching and deduplication
 - `cost_effective_search_tools.py` - Alternative search provider integrations

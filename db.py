@@ -35,12 +35,19 @@ async def init_db() -> asyncpg.Pool:
                 header TEXT,
                 initial_prompt TEXT NOT NULL,
                 report_markdown TEXT,
+                search_mode TEXT NOT NULL DEFAULT 'no_adaptive',
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 last_activity_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 usage_jsonb JSONB,
                 cost_summary_jsonb JSONB
             );
+            """
+        )
+        await connection.execute(
+            """
+            ALTER TABLE sessions
+            ADD COLUMN IF NOT EXISTS search_mode TEXT NOT NULL DEFAULT 'no_adaptive';
             """
         )
         await connection.execute(
