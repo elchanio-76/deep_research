@@ -131,8 +131,10 @@ The application provides a clean web interface with two main sections:
 
 1. **Research Section**:
    - Query input field
+   - Search mode dropdown (no adaptive, deep dive, gap-filling)
    - Real-time progress updates
    - Final report display
+   - Session history panel for reloading past runs
 
 2. **Q&A Section**:
    - Chat interface for querying report findings
@@ -172,6 +174,16 @@ DATABASE_URL=postgresql://user:password@localhost:5432/deep_research
 ```python
 research_manager = ResearchManager()
 async for update in research_manager.run("Impact of AI on healthcare"):
+    print(update)
+```
+
+### Adaptive Search Mode
+
+```python
+research_manager = ResearchManager()
+async for update in research_manager.run(
+    "Impact of AI on healthcare", search_mode="deep_dive"
+):
     print(update)
 ```
 

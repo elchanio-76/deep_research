@@ -132,6 +132,8 @@ Evaluates research quality, identifies potential biases, and suggests improvemen
 
 ## 6. Advanced Search Planning & Optimization
 
+*Implemented (adaptive search modes with deep-dive and gap-filling)*
+
 ### Overview
 
 Implements progressive search refinement and intelligent search strategy to maximize information quality within budget constraints.
@@ -190,8 +192,8 @@ Reduces search costs by 50-80% through intelligent search routing and alternativ
 1. [x] **Start with Extension #4 (Interactive Q&A)** - Easiest to implement, immediate user value
 2. [x] **Extension #1 (Citation Agent)** - Builds on existing search functionality
 3. [x] **Extension #5 (Quality Analysis)** - Enhances research credibility
-4. [ ] **Extension #7 (Cost-Effective Search)** - High impact cost savings, moderate effort
-5. [ ] **Extension #6 (Advanced Search Planning)** - Enhances search quality and efficiency
+4. [x] **Extension #6 (Advanced Search Planning)** - Enhances search quality and efficiency
+5. [ ] **Extension #7 (Cost-Effective Search)** - High impact cost savings, moderate effort
 6. [ ] **Extension #3 (Memory System)** - Requires database setup
 7. [ ] **Extension #2 (Export Formats)** - Most complex due to document generation
 
