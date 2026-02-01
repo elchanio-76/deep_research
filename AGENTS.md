@@ -11,6 +11,7 @@
 - Data models use Pydantic in `new_models.py`.
 - Model defaults and shared constants live in `config.py`.
 - Quality & bias analysis is available via the Q&A flow (`/quality`, `/bias`).
+- Cost-effective search routing between OpenAI WebSearch and Brave Search API.
 
 ## Cursor/Copilot Rules
 - No `.cursorrules`, `.cursor/rules/`, or `.github/copilot-instructions.md` found.
@@ -120,7 +121,7 @@
 - If adding tests, mock network and email calls.
 
 ## External Services
-- Web search relies on outbound HTTP requests.
+- Web search uses OpenAI WebSearch or Brave Search API based on cost-effective toggle.
 - Email features depend on `sendgrid` configuration.
 - Slack support uses `slack_sdk` / `slack_bolt` when enabled.
 - Document any new service credentials in `README.md`.
@@ -150,4 +151,5 @@
 - App entrypoint: `deep_research.py`
 - Orchestration: `research_manager.py`
 - Models: `new_models.py`
-- Agents: `planner_agent.py`, `writer_agent.py`, `qa_agent.py`, `quality_agent.py`, etc.
+- Agents: `planner_agent.py`, `writer_agent.py`, `qa_agent.py`, `quality_agent.py`, `brave_search_agent.py`, etc.
+- Search Tools: `search_agent.py` (OpenAI WebSearch), `brave_search_tool.py` (Brave API)
