@@ -53,6 +53,7 @@ class ResearchManager:
         self.cost: float = 0.0
         self.current_session_id: uuid.UUID | None = None
         self.search_mode: str = SEARCH_MODE_DEFAULT
+        self.cost_effective_search: bool = False
 
     def _usage_snapshot(self) -> dict[str, object]:
         return self.session_usage.model_dump()
@@ -158,7 +159,8 @@ exceed the remaining budget.
             if not phase_searches:
                 continue
             phase_plan = WebSearchPlan(searches=phase_searches)
-            phase_results = await self.perform_searches(phase_plan)
+            # Pass the phase name for hybrid routing
+            phase_results = await self.perform_searches(phase_plan, phase=phase.phase)
             additional_results.extend(phase_results)
             remaining_budget -= len(phase_searches)
         return additional_results
@@ -225,7 +227,12 @@ exceed the remaining budget.
             )
         await self._update_session(search_mode=self.search_mode)
 
-    async def _create_session(self, initial_prompt: str, search_mode: str) -> None:
+    async def _create_session(
+        self,
+        initial_prompt: str,
+        search_mode: str,
+        cost_effective_search: bool = False,
+    ) -> None:
         pool = await self._get_pool()
         session_id = uuid.uuid4()
         self.current_session_id = session_id
@@ -240,15 +247,17 @@ exceed the remaining budget.
                     initial_prompt,
                     report_markdown,
                     search_mode,
+                    cost_effective_search,
                     usage_jsonb,
                     cost_summary_jsonb
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 """,
                 session_id,
                 None,
                 initial_prompt,
                 None,
                 search_mode,
+                cost_effective_search,
                 json.dumps(usage_snapshot),
                 json.dumps(cost_snapshot),
             )
@@ -277,6 +286,7 @@ exceed the remaining budget.
         self.cost = 0.0
         self.current_session_id = None
         self.search_mode = SEARCH_MODE_DEFAULT
+        self.cost_effective_search = False
 
     def _format_cost_summary_from_snapshot(self, snapshot: object | None) -> str:
         snapshot_dict = self._normalize_json_payload(snapshot)
@@ -311,7 +321,7 @@ exceed the remaining budget.
 
     async def load_session(
         self, session_id: str
-    ) -> tuple[str, str, list[dict[str, str]], str, str]:
+    ) -> tuple[str, str, list[dict[str, str]], str, str, bool]:
         pool = await self._get_pool()
         session_uuid = uuid.UUID(session_id)
         async with pool.acquire() as connection:
@@ -322,6 +332,7 @@ exceed the remaining budget.
                        initial_prompt,
                        report_markdown,
                        search_mode,
+                       cost_effective_search,
                        usage_jsonb,
                        cost_summary_jsonb
                 FROM sessions
@@ -339,10 +350,11 @@ exceed the remaining budget.
                 session_uuid,
             )
         if session_row is None:
-            return "", "", [], "", SEARCH_MODE_DEFAULT
+            return "", "", [], "", SEARCH_MODE_DEFAULT, False
         self.current_session_id = session_uuid
         self.last_query = session_row["initial_prompt"]
         self.search_mode = session_row["search_mode"] or SEARCH_MODE_DEFAULT
+        self.cost_effective_search = session_row.get("cost_effective_search", False)
         usage_snapshot = self._normalize_json_payload(session_row["usage_jsonb"])
         cost_snapshot = self._normalize_json_payload(session_row["cost_summary_jsonb"])
         try:
@@ -377,6 +389,7 @@ exceed the remaining budget.
             history,
             self.last_query or "",
             self.search_mode,
+            self.cost_effective_search,
         )
 
     async def edit_report(
@@ -420,7 +433,12 @@ exceed the remaining budget.
 
     # research_manager.py - REVISED run() method
     # revisions: update flow to include intelligent fact-checking and editing of report
-    async def run(self, query: str, search_mode: str = SEARCH_MODE_DEFAULT):
+    async def run(
+        self,
+        query: str,
+        search_mode: str = SEARCH_MODE_DEFAULT,
+        cost_effective_search: bool = False,
+    ):
         """Run the deep research process, yielding status updates and final report"""
         self.last_query = query
         self.session_usage = SessionUsage()
@@ -431,8 +449,9 @@ exceed the remaining budget.
         self.search_mode = (
             search_mode if search_mode in SEARCH_MODE_OPTIONS else SEARCH_MODE_DEFAULT
         )
+        self.cost_effective_search = cost_effective_search
         set_session_usage(self.session_usage)
-        await self._create_session(query, self.search_mode)
+        await self._create_session(query, self.search_mode, cost_effective_search)
         trace_id = gen_trace_id()
         with trace("Research trace", trace_id=trace_id):
             print(
@@ -446,7 +465,7 @@ exceed the remaining budget.
             search_plan = await self.plan_searches(query)
 
             yield "Executing searches...\n"
-            search_results = await self.perform_searches(search_plan)
+            search_results = await self.perform_searches(search_plan, phase="initial")
 
             adaptive_plan = None
             if self.search_mode != SEARCH_MODE_DEFAULT:
@@ -546,6 +565,7 @@ exceed the remaining budget.
             await self._create_session(
                 self.last_query or "Unknown",
                 self.search_mode or SEARCH_MODE_DEFAULT,
+                self.cost_effective_search,
             )
             if self.report is not None:
                 await self._insert_message(
@@ -722,12 +742,20 @@ exceed the remaining budget.
         print(f"Total cost: {self.calculate_total_cost()}")
         return result.final_output_as(WebSearchPlan)
 
-    async def perform_searches(self, search_plan: WebSearchPlan) -> list[str]:
-        """Perform the searches to perform for the query"""
+    async def perform_searches(
+        self, search_plan: WebSearchPlan, phase: str = "initial"
+    ) -> list[str]:
+        """Perform searches with hybrid routing based on cost_effective_search flag."""
         print("Searching...")
         num_completed = 0
+        searches = search_plan.searches
+
+        # Determine which searches use Brave vs OpenAI
+        brave_flags = self._compute_brave_flags(searches, phase)
+
         tasks = [
-            asyncio.create_task(self.search(item)) for item in search_plan.searches
+            asyncio.create_task(self._search_with_routing(item, use_brave))
+            for item, use_brave in zip(searches, brave_flags)
         ]
         results = []
         for task in asyncio.as_completed(tasks):
@@ -742,6 +770,67 @@ exceed the remaining budget.
 
         print(f"Total cost: {self.calculate_total_cost()}")
         return results
+
+    def _compute_brave_flags(
+        self,
+        searches: list[WebSearchItem],
+        phase: str,
+    ) -> list[bool]:
+        """Determine which searches should use Brave vs OpenAI.
+
+        Rules:
+        - If cost_effective_search is OFF: all OpenAI (all False)
+        - If cost_effective_search is ON:
+          - phase=initial with no_adaptive mode: all Brave (all True)
+          - phase=deep_dive or gap_fill: 50/50 split (ceil Brave, floor OpenAI)
+        """
+        n = len(searches)
+
+        if not self.cost_effective_search:
+            return [False] * n
+
+        # For no_adaptive mode initial phase, use all Brave
+        if phase == "initial" and self.search_mode == "no_adaptive":
+            return [True] * n
+
+        # For adaptive phases (deep_dive, gap_fill), use 50/50 split
+        if phase in ("deep_dive", "gap_fill"):
+            import math
+
+            num_brave = math.ceil(n / 2)
+            return [True] * num_brave + [False] * (n - num_brave)
+
+        # Default: use Brave for cost-effective mode initial phase
+        return [True] * n
+
+    async def _search_with_routing(
+        self,
+        item: WebSearchItem,
+        use_brave: bool,
+    ) -> str | None:
+        """Execute a search using either Brave or OpenAI based on use_brave flag."""
+        input_text = f"Search term: {item.query}\nReason for searching: {item.reason}"
+
+        if use_brave:
+            from brave_search_agent import brave_search_agent
+
+            try:
+                result = await Runner.run(brave_search_agent, input_text)
+                self.update_usage_stats(
+                    "brave_search_agent", result.context_wrapper.usage
+                )
+                # Note: brave_search_tool already calls record_tool_call
+                return str(result.final_output)
+            except Exception:
+                return None
+        else:
+            try:
+                result = await Runner.run(search_agent, input_text)
+                self.update_usage_stats("search_agent", result.context_wrapper.usage)
+                record_tool_call("search_agent", "web_search")
+                return str(result.final_output)
+            except Exception:
+                return None
 
     async def search(self, item: WebSearchItem) -> str | None:
         """Perform a search for the query"""

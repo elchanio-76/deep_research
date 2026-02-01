@@ -52,6 +52,12 @@ async def init_db() -> asyncpg.Pool:
         )
         await connection.execute(
             """
+            ALTER TABLE sessions
+            ADD COLUMN IF NOT EXISTS cost_effective_search BOOLEAN NOT NULL DEFAULT FALSE;
+            """
+        )
+        await connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS messages (
                 id UUID PRIMARY KEY,
                 session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
