@@ -39,6 +39,7 @@ SEARCH_MODE_OPTIONS = [
 AGENT_MODEL_MAP = {
     "planner_agent": PLANNER_MODEL,
     "search_agent": SEARCH_MODEL,
+    "brave_search_agent": SEARCH_MODEL,
     "writer_agent": WRITER_MODEL,
     "qa_agent": QA_MODEL,
     "quality_agent": QUALITY_MODEL,
@@ -61,7 +62,12 @@ MODEL_COSTS = {
     "gpt-4o-mini": {"input": 0.15, "output": 0.6},
 }
 
+# Brave Search config
+BRAVE_RATE_LIMIT_SECONDS = 1.0
+BRAVE_SEARCH_COST = 0.0
+
 TOOL_COSTS = {
     # Per tool call
     "web_search": 0.0112,  # For use with gpt-4o-mini
+    "brave_search": BRAVE_SEARCH_COST,
 }

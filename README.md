@@ -9,6 +9,7 @@ An intelligent research assistant built with OpenAI's Agents SDK that conducts c
 - **Advanced Fact-Checking**: Adaptive verification strategies with confidence scoring
 - **Report Editing**: Automatic correction of dubious claims based on fact-checking results
 - **Interactive Q&A**: Chat interface for querying report findings
+- **Cost-Effective Search**: Hybrid routing between OpenAI WebSearch and Brave Search API
 - **Cost Optimization**: Smart verification strategies to balance accuracy and efficiency
 - **Email Integration**: Automated report distribution
 
@@ -35,7 +36,9 @@ Query → Plan Searches → Execute Searches → Write Report → Fact-Check →
 **Planning & Search Agents:**
 
 - `PlannerAgent` (`planner_agent.py`): Generates strategic web search plans
-- `search_agent.py`: Executes individual web searches with context
+- `search_agent.py`: Executes individual web searches with OpenAI WebSearch
+- `brave_search_agent.py`: Executes web searches with Brave Search API
+- `brave_search_tool.py`: Brave Search API integration with rate limiting
 
 **Content Generation Agents:**
 
@@ -132,6 +135,7 @@ The application provides a clean web interface with two main sections:
 1. **Research Section**:
    - Query input field
    - Search mode dropdown (no adaptive, deep dive, gap-filling)
+   - Cost-Effective Search toggle (uses Brave Search API)
    - Real-time progress updates
    - Final report display
    - Session history panel for reloading past runs
@@ -150,13 +154,13 @@ The application provides a clean web interface with two main sections:
    ```
 
 2. **Environment Configuration**:
-   Create a `.env` file with:
+    Create a `.env` file with:
 
-```
-OPENAI_API_KEY=your_api_key_here
-DATABASE_URL=postgresql://user:password@localhost:5432/deep_research
-```
-
+    ```
+    OPENAI_API_KEY=your_api_key_here
+    DATABASE_URL=postgresql://user:password@localhost:5432/deep_research
+    BRAVE_API_KEY=your_brave_api_key_here  # Optional: for cost-effective search
+    ```
 
 3. **Run Application**:
 
@@ -209,12 +213,22 @@ The system implements intelligent cost management:
 - **Strategy Selection**: Match verification intensity to claim characteristics
 - **Batch Processing**: Group related claims for efficient verification
 - **Skip Trivial**: Avoid unnecessary verification of obvious facts
+- **Cost-Effective Search Routing**: Hybrid routing between OpenAI WebSearch and Brave Search API
+
+### Search Routing Logic
+
+When Cost-Effective Search is enabled:
+
+- **no_adaptive mode**: All searches use Brave Search API
+- **deep_dive/gap_fill modes**: 50/50 split between Brave and OpenAI (ceil Brave, floor OpenAI)
+- **Cost-Effective OFF**: All searches use OpenAI WebSearch
 
 Typical costs:
 
 - Simple research query: $0.10-0.30
 - Complex topic with fact-checking: $0.50-1.50
 - Highly controversial topic: $2.00-5.00
+- With Cost-Effective Search enabled: Significantly reduced search costs (Brave API is free or low-cost)
 
 ## File Structure
 
@@ -223,7 +237,9 @@ deep_research/
 ├── deep_research.py           # Main Gradio application
 ├── research_manager.py        # Core orchestration logic
 ├── planner_agent.py          # Search planning
-├── search_agent.py           # Web search execution
+├── search_agent.py           # OpenAI Web search execution
+├── brave_search_agent.py     # Brave Search agent wrapper
+├── brave_search_tool.py      # Brave Search API integration
 ├── writer_agent.py           # Report generation
 ├── claim_extraction_agent.py # Claim identification
 ├── fact_check_planner_agent.py # Verification orchestration

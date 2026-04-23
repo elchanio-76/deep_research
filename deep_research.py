@@ -9,8 +9,8 @@ load_dotenv(override=True)
 research_manager = ResearchManager()
 
 
-async def run(query: str, search_mode: str):
-    async for chunk in research_manager.run(query, search_mode):
+async def run(query: str, search_mode: str, cost_effective: bool):
+    async for chunk in research_manager.run(query, search_mode, cost_effective):
         yield chunk, research_manager.get_cost_summary(), []
 
 
@@ -67,20 +67,29 @@ async def refresh_sessions():
 
 async def load_session(session_id: str):
     if not session_id:
-        return "", "", [], "", SEARCH_MODE_DEFAULT, None
+        return "", "", [], "", SEARCH_MODE_DEFAULT, False, None
     (
         report_markdown,
         cost_text,
         history,
         initial_prompt,
         search_mode,
+        cost_effective,
     ) = await research_manager.load_session(session_id)
-    return report_markdown, cost_text, history, initial_prompt, search_mode, session_id
+    return (
+        report_markdown,
+        cost_text,
+        history,
+        initial_prompt,
+        search_mode,
+        cost_effective,
+        session_id,
+    )
 
 
 def new_session():
     research_manager.reset_session_state()
-    return "", "", [], "", SEARCH_MODE_DEFAULT, None, gr.update(value=None)
+    return "", "", [], "", SEARCH_MODE_DEFAULT, False, None, gr.update(value=None)
 
 
 with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
@@ -108,6 +117,10 @@ with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
                 ],
                 value=SEARCH_MODE_DEFAULT,
             )
+            cost_effective_toggle = gr.Checkbox(
+                label="Cost-Effective Search (uses Brave)",
+                value=False,
+            )
             run_button = gr.Button("Run", variant="primary")
             report = gr.Markdown(label="Report")
             cost_summary = gr.Markdown(label="Session Cost Summary")
@@ -120,12 +133,12 @@ with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
 
     run_button.click(
         fn=run,
-        inputs=[query_textbox, search_mode],
+        inputs=[query_textbox, search_mode, cost_effective_toggle],
         outputs=[report, cost_summary, chatbot],
     )
     query_textbox.submit(
         fn=run,
-        inputs=[query_textbox, search_mode],
+        inputs=[query_textbox, search_mode, cost_effective_toggle],
         outputs=[report, cost_summary, chatbot],
     )
     refresh_cost_button.click(fn=refresh_cost, inputs=None, outputs=cost_summary)
@@ -150,6 +163,7 @@ with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
             chatbot,
             query_textbox,
             search_mode,
+            cost_effective_toggle,
             session_state,
         ],
     )
@@ -162,6 +176,7 @@ with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
             chatbot,
             query_textbox,
             search_mode,
+            cost_effective_toggle,
             session_state,
             session_radio,
         ],

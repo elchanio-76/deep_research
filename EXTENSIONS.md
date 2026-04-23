@@ -161,6 +161,8 @@ Implements progressive search refinement and intelligent search strategy to maxi
 
 ## 7. Cost-Effective Search Alternatives
 
+*Implemented (hybrid search routing, based on UI toggle)*
+
 ### Overview
 
 Reduces search costs by 50-80% through intelligent search routing and alternative search providers while maintaining quality.
@@ -193,7 +195,7 @@ Reduces search costs by 50-80% through intelligent search routing and alternativ
 2. [x] **Extension #1 (Citation Agent)** - Builds on existing search functionality
 3. [x] **Extension #5 (Quality Analysis)** - Enhances research credibility
 4. [x] **Extension #6 (Advanced Search Planning)** - Enhances search quality and efficiency
-5. [ ] **Extension #7 (Cost-Effective Search)** - High impact cost savings, moderate effort
+5. [x] **Extension #7 (Cost-Effective Search)** - High impact cost savings, moderate effort
 6. [ ] **Extension #3 (Memory System)** - Requires database setup
 7. [ ] **Extension #2 (Export Formats)** - Most complex due to document generation
 
