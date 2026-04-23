@@ -77,8 +77,10 @@ async def _brave_web_search_impl(query: str) -> str:
 
     try:
         payload = await _fetch_brave_results(query, api_key)
-    except Exception as exc:
-        return f"Brave search failed: {exc}"
+    except httpx.HTTPStatusError as e:
+        return f"Brave search failed: HTTP {e.response.status_code}"
+    except Exception:
+        return "Brave search failed: An unexpected error occurred"
 
     results = _process_search_response(payload)
     record_tool_call("brave_search_agent", "brave_search")

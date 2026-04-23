@@ -125,9 +125,10 @@ class TestEnforceBraveRateLimit:
     async def test_no_delay_on_first_call(self):
         """Should not delay on the first API call."""
         with mock.patch("brave_search_tool.BRAVE_RATE_LIMIT_SECONDS", 1.0):
-            start = asyncio.get_event_loop().time()
+            loop = asyncio.get_running_loop()
+            start = loop.time()
             await _enforce_brave_rate_limit()
-            elapsed = asyncio.get_event_loop().time() - start
+            elapsed = loop.time() - start
             assert elapsed < 0.1  # Should be nearly instant
 
     @pytest.mark.asyncio
@@ -135,9 +136,10 @@ class TestEnforceBraveRateLimit:
         """Should enforce rate limit between consecutive calls."""
         with mock.patch("brave_search_tool.BRAVE_RATE_LIMIT_SECONDS", 0.5):
             await _enforce_brave_rate_limit()
-            start = asyncio.get_event_loop().time()
+            loop = asyncio.get_running_loop()
+            start = loop.time()
             await _enforce_brave_rate_limit()
-            elapsed = asyncio.get_event_loop().time() - start
+            elapsed = loop.time() - start
             assert elapsed >= 0.5  # Should wait at least 0.5 seconds
 
     @pytest.mark.asyncio
@@ -147,9 +149,10 @@ class TestEnforceBraveRateLimit:
             await _enforce_brave_rate_limit()
             # Simulate time passing
             bst_module._last_brave_call_at -= 15.0
-            start = asyncio.get_event_loop().time()
+            loop = asyncio.get_running_loop()
+            start = loop.time()
             await _enforce_brave_rate_limit()
-            elapsed = asyncio.get_event_loop().time() - start
+            elapsed = loop.time() - start
             assert elapsed < 0.1  # Should be nearly instant
 
 
@@ -262,12 +265,12 @@ class TestProcessSearchResponse:
 
     def test_handles_non_dict_payload(self):
         """Should return empty list when payload is not a dict."""
-        results = _process_search_response("not a dict")
+        results = _process_search_response({})  # type: ignore
         assert results == []
 
     def test_handles_non_dict_web(self):
         """Should return empty list when web is not a dict."""
-        payload = {"web": "not a dict"}
+        payload: dict = {"web": "not a dict"}  # type: ignore
         results = _process_search_response(payload)
         assert results == []
 
@@ -360,10 +363,11 @@ class TestBraveWebSearchImpl:
         mock_fetch_brave_results.return_value = sample_brave_response
 
         with mock.patch("brave_search_tool.BRAVE_RATE_LIMIT_SECONDS", 0.3):
-            start = asyncio.get_event_loop().time()
+            loop = asyncio.get_running_loop()
+            start = loop.time()
             await _brave_web_search_impl("query 1")
             await _brave_web_search_impl("query 2")
-            elapsed = asyncio.get_event_loop().time() - start
+            elapsed = loop.time() - start
 
             assert elapsed >= 0.3  # Should wait at least 0.3 seconds
             assert mock_fetch_brave_results.call_count == 2

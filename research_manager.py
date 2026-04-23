@@ -821,7 +821,8 @@ exceed the remaining budget.
                 )
                 # Note: brave_search_tool already calls record_tool_call
                 return str(result.final_output)
-            except Exception:
+            except Exception as e:
+                print(f"Brave search failed for '{item.query}': {e}")
                 return None
         else:
             try:
@@ -829,7 +830,8 @@ exceed the remaining budget.
                 self.update_usage_stats("search_agent", result.context_wrapper.usage)
                 record_tool_call("search_agent", "web_search")
                 return str(result.final_output)
-            except Exception:
+            except Exception as e:
+                print(f"OpenAI search failed for '{item.query}': {e}")
                 return None
 
     async def search(self, item: WebSearchItem) -> str | None:
