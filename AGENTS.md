@@ -207,3 +207,4 @@ src/
 - DB layer: `src/db/` (pool, sessions, messages)
 - SSE streaming: `src/streaming/sse.py`
 - Tests: `tests/`
+- Feature plans and documentation: `docs/`
