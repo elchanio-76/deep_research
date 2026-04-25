@@ -1,6 +1,6 @@
 # Deep Research Agent
 
-An intelligent research assistant built with OpenAI's Agents SDK that conducts comprehensive research, generates detailed reports, and provides fact-checking with intelligent verification strategies. The application features Q&A capabilities on generated reports and adaptive fact-checking with cost optimization.
+An intelligent research assistant built with OpenAI's Agents SDK. It conducts comprehensive research, generates detailed reports, and provides fact-checking with intelligent verification strategies. The backend is a FastAPI REST API with Server-Sent Events (SSE) for real-time streaming; a Gradio thin client provides the web UI.
 
 ## Features
 
@@ -10,283 +10,227 @@ An intelligent research assistant built with OpenAI's Agents SDK that conducts c
 - **Report Editing**: Automatic correction of dubious claims based on fact-checking results
 - **Interactive Q&A**: Chat interface for querying report findings
 - **Cost-Effective Search**: Hybrid routing between OpenAI WebSearch and Brave Search API
-- **Cost Optimization**: Smart verification strategies to balance accuracy and efficiency
-- **Email Integration**: Automated report distribution
+- **Session Management**: Persistent research sessions stored in PostgreSQL
+- **REST API**: FastAPI backend with SSE streaming for any HTTP client
 
 ## Architecture
 
-### Core Components
-
-#### 1. Research Manager (`research_manager.py`)
-
-The central orchestrator that manages the entire research pipeline:
-
 ```
-Query → Plan Searches → Execute Searches → Write Report → Fact-Check → Edit (if needed) → Email
-```
-
-**Key Methods:**
-
-- `run(query)`: Main research pipeline with streaming updates
-- `chat(message, history)`: Q&A interface for generated reports
-- `fact_check_report()`: Adaptive fact-checking with intelligent strategy selection
-
-#### 2. Agent Network
-
-**Planning & Search Agents:**
-
-- `PlannerAgent` (`planner_agent.py`): Generates strategic web search plans
-- `search_agent.py`: Executes individual web searches with OpenAI WebSearch
-- `brave_search_agent.py`: Executes web searches with Brave Search API
-- `brave_search_tool.py`: Brave Search API integration with rate limiting
-
-**Content Generation Agents:**
-
-- `writer_agent.py`: Creates comprehensive research reports
-- `editor_agent.py`: Revises reports based on fact-checking results
-- `email_agent.py`: Generates professional email summaries
-
-**Fact-Checking System:**
-
-- `claim_extraction_agent.py`: Extracts verifiable claims with rich metadata
-- `fact_check_planner_agent.py`: Orchestrates verification strategies
-- `verification_tools.py`: Implements multiple verification approaches
-
-**Interactive Agents:**
-
-- `qa_agent.py`: Handles Q&A on report findings
-
-#### 3. Verification System
-
-The fact-checking system uses intelligent strategy selection:
-
-**Verification Strategies:**
-
-- **Skip**: For obvious facts and definitions (~$0.00)
-- **Quick**: Single search verification (~$0.015)
-- **Thorough**: Multi-source cross-referencing (~$0.03)
-- **Red Team**: Adversarial verification for controversial claims (~$0.05)
-- **Group**: Batch verification of related claims (cost-efficient)
-
-**Claim Analysis:**
-
-- Importance scoring (critical/high/medium/low)
-- Controversy assessment (uncontroversial/somewhat/highly controversial)
-- Verifiability rating (easily/moderately/hard to verify)
-- Semantic grouping for efficient batch processing
-
-#### 4. Data Models (`new_models.py`)
-
-**Core Models:**
-
-- `FinalReportData`: Complete report with fact-checking metadata
-- `VerifiedClaims`: Collection of fact-checked claims with confidence scores
-- `SingleClaimCitation`: Individual claim verification results
-
-## Application Flow
-
-### 1. Research Pipeline
-
-```mermaid
-graph TD
-    A[User Query] --> B[Plan Searches]
-    B --> C[Execute Web Searches]
-    C --> D[Generate Initial Report]
-    D --> E[Extract Claims]
-    E --> F[Analyze Claim Metadata]
-    F --> G[Select Verification Strategy]
-    G --> H[Execute Fact-Checking]
-    H --> I{Dubious Claims Found?}
-    I -->|Yes| J[Edit Report]
-    I -->|No| K[Keep Original]
-    J --> L[Final Report]
-    K --> L
-    L --> M[Send Email]
-    L --> N[Enable Q&A]
+gradio_app.py  (Gradio thin client — HTTP/SSE only)
+      │
+      ▼
+src/api/main.py  (FastAPI app)
+  ├── POST /api/research/start  →  SSE stream
+  ├── POST /api/chat            →  SSE stream
+  └── GET/DELETE /api/sessions  →  JSON
+      │
+      ▼
+src/core/research_manager.py  (orchestrator, async generators)
+  ├── src/agents/               (all AI agent modules)
+  ├── src/db/                   (asyncpg pool + SQL queries)
+  └── src/streaming/sse.py      (SSE event formatting)
 ```
 
-### 2. Fact-Checking Intelligence
+### Package Structure
 
-The system analyzes each claim across multiple dimensions:
-
-- **Importance**: How central to the report's thesis
-- **Controversy**: Likelihood of dispute
-- **Verifiability**: Ease of fact-checking
-- **Type**: Statistical, historical, scientific, predictive
-- **Topic**: Semantic grouping for batch processing
-
-Based on this analysis, it selects the most appropriate verification strategy, optimizing for accuracy on important claims while being cost-efficient on trivial ones.
-
-### 3. Adaptive Editing
-
-When dubious claims (confidence < 70%) are detected:
-
-- Reports are automatically edited to reflect verification results
-- Low-confidence claims are flagged or removed
-- Supporting evidence is strengthened
-- Contradictory information is addressed
-
-## User Interface
-
-### Gradio Web Interface (`deep_research.py`)
-
-The application provides a clean web interface with two main sections:
-
-1. **Research Section**:
-   - Query input field
-   - Search mode dropdown (no adaptive, deep dive, gap-filling)
-   - Cost-Effective Search toggle (uses Brave Search API)
-   - Real-time progress updates
-   - Final report display
-   - Session history panel for reloading past runs
-
-2. **Q&A Section**:
-   - Chat interface for querying report findings
-   - Context-aware responses
-   - Source attribution
+```
+src/
+├── api/
+│   ├── main.py          # FastAPI app + lifespan (pool, ResearchManager)
+│   ├── research.py      # POST /api/research/start
+│   ├── chat.py          # POST /api/chat
+│   ├── sessions.py      # GET/DELETE /api/sessions, /cost
+│   └── dependencies.py  # get_pool, get_research_manager
+├── core/
+│   ├── research_manager.py   # Core orchestrator
+│   └── usage_tracker.py      # ContextVar token tracking
+├── agents/              # All AI agent modules (stateless)
+│   ├── planner_agent.py
+│   ├── search_agent.py
+│   ├── brave_search_agent.py
+│   ├── brave_search_tool.py
+│   ├── writer_agent.py
+│   ├── editor_agent.py
+│   ├── qa_agent.py
+│   ├── quality_agent.py
+│   ├── claim_extraction_agent.py
+│   ├── fact_check_planner_agent.py
+│   ├── verification_tools.py
+│   ├── email_agent.py
+│   ├── session_title_agent.py
+│   ├── adaptive_search_planner.py
+│   └── citation_agent.py
+├── models/
+│   ├── domain.py        # Pydantic domain models
+│   └── api.py           # Request/Response DTOs + SSE event models
+├── db/
+│   ├── pool.py          # asyncpg pool lifecycle + DDL
+│   ├── sessions.py      # Session CRUD
+│   └── messages.py      # Message insert/fetch
+├── streaming/
+│   └── sse.py           # SSE event formatting + stream adapters
+└── config/
+    └── settings.py      # All constants + env loading
+```
 
 ## Installation & Setup
 
-1. **Install Dependencies**:
+1. **Install dependencies**:
 
    ```bash
-   pip install gradio python-dotenv agents pydantic
+   pip install -r requirements.txt
    ```
 
-2. **Environment Configuration**:
-    Create a `.env` file with:
+2. **Configure environment** — create a `.env` file:
 
-    ```
-    OPENAI_API_KEY=your_api_key_here
-    DATABASE_URL=postgresql://user:password@localhost:5432/deep_research
-    BRAVE_API_KEY=your_brave_api_key_here  # Optional: for cost-effective search
-    ```
+   ```
+   OPENAI_API_KEY=your_openai_api_key
+   DATABASE_URL=postgresql://user:password@localhost:5432/deep_research
+   BRAVE_API_KEY=your_brave_api_key        # optional: cost-effective search
+   SENDGRID_API_KEY=your_sendgrid_key      # optional: email reports
+   FROM_EMAIL=you@example.com              # optional: email sender
+   TO_EMAIL=recipient@example.com          # optional: email recipient
+   ```
 
-3. **Run Application**:
+3. **Start the API server**:
 
    ```bash
-   python deep_research.py
+   uvicorn src.api.main:app --reload
    ```
 
-4. **Model Defaults & Constants**:
-   - Update `config.py` to tweak model selections and shared limits.
+4. **Start the Gradio UI** (in a separate terminal):
+
+   ```bash
+   python gradio_app.py
+   ```
+
+## API Reference
+
+### `POST /api/research/start`
+
+Start a research pipeline. Returns an SSE stream.
+
+**Request body:**
+```json
+{
+  "query": "Impact of AI on healthcare",
+  "search_mode": "no_adaptive",
+  "cost_effective": false
+}
+```
+
+`search_mode` values: `no_adaptive` | `deep_dive` | `deep_dive_gap_fill`
+
+**SSE event sequence:**
+```
+data: {"type": "progress", "message": "Planning searches..."}
+data: {"type": "progress", "message": "Executing searches..."}
+data: {"type": "report",   "content": "# Research Report\n\n..."}
+data: {"type": "cost",     "summary": {"total_input_tokens": 15234, ...}}
+data: {"type": "complete"}
+```
+
+### `POST /api/chat`
+
+Ask a question about a session's report. Returns an SSE stream.
+
+**Request body:**
+```json
+{
+  "session_id": "uuid-here",
+  "message": "What are the main findings?",
+  "history": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
+}
+```
+
+**SSE event sequence:**
+```
+data: {"type": "chunk",    "content": "Based on the report..."}
+data: {"type": "complete"}
+```
+
+Special commands: `/quality`, `/bias` — routes to quality/bias analysis agent.
+
+### `GET /api/sessions`
+
+Returns a list of session summaries ordered by last activity.
+
+### `GET /api/sessions/{session_id}`
+
+Returns full session data including report, cost summary, and chat history.
+
+### `DELETE /api/sessions/{session_id}`
+
+Deletes a session and its messages. Returns 204.
+
+### `GET /api/sessions/{session_id}/cost`
+
+Returns token usage and cost summary for a session.
 
 ## Usage Examples
 
-### Basic Research Query
+### Python client (httpx + SSE)
 
 ```python
-research_manager = ResearchManager()
-async for update in research_manager.run("Impact of AI on healthcare"):
-    print(update)
+import httpx
+
+with httpx.Client() as client:
+    with client.stream("POST", "http://localhost:8000/api/research/start",
+                       json={"query": "Impact of AI on healthcare"}) as r:
+        for line in r.iter_lines():
+            if line.startswith("data: "):
+                print(line[6:])
 ```
 
-### Adaptive Search Mode
+### Direct ResearchManager usage (testing/scripting)
 
 ```python
-research_manager = ResearchManager()
-async for update in research_manager.run(
-    "Impact of AI on healthcare", search_mode="deep_dive"
-):
-    print(update)
-```
+import asyncio
+from src.core.research_manager import ResearchManager
+from src.db.pool import init_db, close_pool
 
-### Q&A on Generated Report
+async def main():
+    pool = await init_db()
+    rm = ResearchManager(pool=pool)
+    async for update in rm.run("Impact of AI on healthcare"):
+        print(update)
+    await close_pool()
 
-```python
-async for response in research_manager.chat("What are the main benefits mentioned?", []):
-    print(response)
-```
-
-### Quality & Bias Analysis (on request)
-
-```python
-async for response in research_manager.chat("/quality", []):
-    print(response)
+asyncio.run(main())
 ```
 
 ## Cost Optimization
 
-The system implements intelligent cost management:
-
 - **Claim Prioritization**: Focus verification budget on important claims
-- **Strategy Selection**: Match verification intensity to claim characteristics
+- **Strategy Selection**: Match verification intensity to claim characteristics (skip / quick / thorough / red-team / group)
 - **Batch Processing**: Group related claims for efficient verification
-- **Skip Trivial**: Avoid unnecessary verification of obvious facts
-- **Cost-Effective Search Routing**: Hybrid routing between OpenAI WebSearch and Brave Search API
-
-### Search Routing Logic
-
-When Cost-Effective Search is enabled:
-
-- **no_adaptive mode**: All searches use Brave Search API
-- **deep_dive/gap_fill modes**: 50/50 split between Brave and OpenAI (ceil Brave, floor OpenAI)
-- **Cost-Effective OFF**: All searches use OpenAI WebSearch
+- **Cost-Effective Search Routing**:
+  - `no_adaptive` + cost-effective ON → all searches use Brave Search API
+  - `deep_dive` / `gap_fill` + cost-effective ON → 50/50 split Brave / OpenAI
+  - cost-effective OFF → all searches use OpenAI WebSearch
 
 Typical costs:
+- Simple query: $0.10–0.30
+- Complex topic with fact-checking: $0.50–1.50
+- With cost-effective search enabled: significantly reduced
 
-- Simple research query: $0.10-0.30
-- Complex topic with fact-checking: $0.50-1.50
-- Highly controversial topic: $2.00-5.00
-- With Cost-Effective Search enabled: Significantly reduced search costs (Brave API is free or low-cost)
+## Testing
 
-## File Structure
-
-```
-deep_research/
-├── deep_research.py           # Main Gradio application
-├── research_manager.py        # Core orchestration logic
-├── planner_agent.py          # Search planning
-├── search_agent.py           # OpenAI Web search execution
-├── brave_search_agent.py     # Brave Search agent wrapper
-├── brave_search_tool.py      # Brave Search API integration
-├── writer_agent.py           # Report generation
-├── claim_extraction_agent.py # Claim identification
-├── fact_check_planner_agent.py # Verification orchestration
-├── verification_tools.py     # Verification strategies
-├── editor_agent.py           # Report editing
-├── qa_agent.py              # Q&A functionality
-├── email_agent.py           # Email generation
-├── new_models.py            # Data models
-├── citation_agent.py        # [OBSOLETE - functionality moved to verification_tools.py]
-└── EXTENSIONS.md            # Future enhancement ideas
+```bash
+python -m pytest                          # all tests
+python -m pytest tests/test_sse.py        # SSE unit + property tests
+python -m pytest tests/test_api.py        # API integration tests
 ```
 
-## Key Features in Detail
-
-### Intelligent Fact-Checking
-
-- Extracts claims with rich metadata (importance, controversy, verifiability)
-- Selects optimal verification strategy per claim
-- Provides confidence scores and detailed rationales
-- Supports multiple verification approaches (quick, thorough, red-team, grouped)
-
-### Adaptive Report Editing
-
-- Automatically identifies dubious claims (confidence < 70%)
-- Edits reports to strengthen weak claims
-- Maintains report coherence while improving accuracy
-- Provides edit summaries for transparency
-
-### Interactive Q&A
-
-- Context-aware responses based on generated reports
-- Web search integration for additional information
-- Source attribution and citation
-- Conversation history support
+Tests cover:
+- SSE event formatting (unit + Hypothesis property-based)
+- Request DTO validation (Hypothesis property-based)
+- Invalid request rejection → HTTP 422 (Hypothesis property-based)
+- API endpoint integration (research, chat, session CRUD)
 
 ## Future Enhancements
 
-See `EXTENSIONS.md` for planned features including:
-
-- Multi-format export (PDF, PowerPoint, Word)
-- Advanced citation management
-- Collaborative research workflows
-- Integration with academic databases
-
-## Contributing
-
-This project is part of the OpenAI Agents SDK community contributions. The modular architecture makes it easy to extend with new agents and verification strategies.
+See `EXTENSIONS.md` for planned features including multi-format export, advanced citation management, and collaborative research workflows.
 
 ## License
 
