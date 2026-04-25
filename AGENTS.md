@@ -2,16 +2,17 @@
 
 ## Scope
 
-- Applies to the entire repository.
+- Applies to the entire repository (worktree: `fastapi-refactor` branch).
 - No nested AGENTS.md files currently exist.
 
 ## Repo Summary
 
-- Python research assistant using OpenAI Agents SDK + Gradio UI.
-- Key entrypoint: `deep_research.py`.
-- Core orchestration: `research_manager.py` with async pipelines.
-- Data models use Pydantic in `new_models.py`.
-- Model defaults and shared constants live in `config.py`.
+- Python research assistant using OpenAI Agents SDK with a FastAPI REST backend.
+- Key entrypoint: `uvicorn src.api.main:app` (FastAPI server).
+- Gradio thin client: `gradio_app.py` (consumes the FastAPI API via HTTP/SSE).
+- Core orchestration: `src/core/research_manager.py` with async pipelines.
+- Data models use Pydantic in `src/models/domain.py` (domain) and `src/models/api.py` (DTOs).
+- Configuration constants and env loading live in `src/config/settings.py`.
 - Quality & bias analysis is available via the Q&A flow (`/quality`, `/bias`).
 - Cost-effective search routing between OpenAI WebSearch and Brave Search API.
 
@@ -26,67 +27,93 @@
 - Install dependencies:
   - `pip install -r requirements.txt`
 - Configure environment:
-  - Create `.env` with `OPENAI_API_KEY=...` (see `README.md`).
+  - Create `.env` with required keys (see `README.md`).
 
 ## Dependency Notes
 
-- Core libraries include `openai-agents`, `agents`, and `gradio`.
+- Core libraries: `fastapi`, `uvicorn`, `sse-starlette`, `openai-agents`, `asyncpg`.
 - Pydantic v2 is used for data models and validation.
-- Async HTTP clients (`aiohttp`, `httpx`) are installed for search agents.
-- Optional integrations include email (`sendgrid`) and Slack (`slack_sdk`).
+- Async HTTP clients (`aiohttp`, `httpx`) are used in search agents and the Gradio thin client.
+- Optional integrations: email (`sendgrid`), Slack (`slack_sdk`).
+- `hypothesis` and `pytest-asyncio` are used for property-based and async tests.
 - Keep dependency additions minimal and update `requirements.txt`.
 
 ## Build / Run Commands
 
-- Run the app locally:
-  - `python deep_research.py`
-- CLI-style usage example (from README):
-  - `python -c "from research_manager import ResearchManager; ..."`
+- Start the FastAPI server:
+  - `uvicorn src.api.main:app --reload`
+- Run the Gradio thin client (requires the FastAPI server to be running):
+  - `python gradio_app.py`
 - There is no build step (pure Python).
 
 ## Runtime Configuration
 
-- `.env` is loaded in `deep_research.py` via `load_dotenv(override=True)`.
-- Ensure `OPENAI_API_KEY` is set before running.
+- `.env` is loaded in `src/api/main.py` via `load_dotenv(override=True)` during lifespan startup.
+- Ensure `OPENAI_API_KEY` and `DATABASE_URL` are set before running.
 - Network access is required for search agents and model calls.
 - If adding new integrations, document their env vars in `README.md`.
 
 ## Lint / Format Commands
 
-- Linting uses Ruff (dependency listed in `requirements.txt`).
+- Linting uses Ruff:
   - Full lint: `ruff check .`
   - Fixable issues: `ruff check . --fix`
 - Formatting:
-  - No formatter config in repo.
-  - If you choose to format, prefer Ruff’s formatter: `ruff format .`
-  - Only run formatters if the change scope is large or requested.
+  - `ruff format .` (only run if change scope is large or requested)
 
 ## Test Commands
 
-- No tests or test framework found in the repo.
-- No default test runner is configured.
-- Single-test command: N/A (no tests directory or pytest dependency).
-- If tests are added later, prefer `pytest` and document:
+- Run all tests:
   - `python -m pytest`
-  - `python -m pytest path/to/test_file.py::test_name`
+- Run a specific test file:
+  - `python -m pytest tests/path/to/test_file.py`
+- Run a specific test:
+  - `python -m pytest tests/path/to/test_file.py::test_name`
+- Tests live in the `tests/` directory.
+
+## Package Structure
+
+```
+src/
+├── api/           # FastAPI routes and app bootstrap
+│   ├── main.py        # App + lifespan (pool init, ResearchManager)
+│   ├── research.py    # POST /api/research/start (SSE)
+│   ├── chat.py        # POST /api/chat (SSE)
+│   ├── sessions.py    # GET/DELETE /api/sessions, cost endpoint
+│   └── dependencies.py # get_pool, get_research_manager
+├── core/          # Orchestration
+│   ├── research_manager.py  # ResearchManager (no UI imports)
+│   └── usage_tracker.py     # ContextVar-based token tracking
+├── agents/        # All AI agent modules (stateless)
+├── models/
+│   ├── domain.py  # Pydantic domain models
+│   └── api.py     # Request/Response DTOs + SSE event models
+├── db/
+│   ├── pool.py    # asyncpg pool lifecycle
+│   ├── sessions.py # Session CRUD queries
+│   └── messages.py # Message insert/fetch queries
+├── streaming/
+│   └── sse.py     # SSE event formatting + async generator adapters
+└── config/
+    └── settings.py # All constants + env loading
+```
 
 ## Code Style (Python)
 
 - Follow PEP 8 style with 4-space indentation.
 - Keep line lengths reasonable (≈ 88–100 chars), but match nearby style.
 - Use f-strings for string interpolation.
-- Prefer double quotes only when needed (prompts often use triple quotes).
 - Keep comments minimal; favor docstrings on public classes/functions.
 
 ## Imports
 
 - Keep all imports at the top of the file.
-- Prefer grouping in this order when touching a file:
-  1) Standard library
-  2) Third-party
-  3) Local modules
+- Prefer grouping in this order:
+  1. Standard library
+  2. Third-party
+  3. Local (`src.*`)
 - Avoid unused imports; remove them during edits.
-- Keep import names consistent with existing usage (e.g., `Runner`, `Usage`).
+- Use `src.*` absolute paths for all internal imports (e.g., `from src.config.settings import ...`).
 
 ## Typing and Models
 
@@ -94,14 +121,12 @@
 - Prefer built-in generics (e.g., `list[str]`, `dict[str, int]`).
 - Data models should be Pydantic `BaseModel` subclasses.
 - Use `Field(...)` for metadata and defaults where appropriate.
-- Avoid introducing new dataclass types unless needed.
 
 ## Naming Conventions
 
 - `snake_case` for functions, methods, and variables.
 - `PascalCase` for classes and Pydantic models.
 - `UPPER_SNAKE_CASE` for module-level constants.
-- Match existing module names (single-purpose `.py` files at repo root).
 
 ## Async Patterns
 
@@ -115,15 +140,15 @@
 - Use `Runner.run(...)` for agent execution and collect `context_wrapper.usage`.
 - Update usage/cost tracking via `ResearchManager.update_usage_stats` when relevant.
 - Pass prompt inputs as clear, labeled strings (e.g., `CLAIMS TO VERIFY:`).
-- Keep model names configurable when agents accept them (see `PlannerAgent`).
+- Keep model names configurable when agents accept them.
 - Preserve existing streaming yields for progress updates.
 
 ## Error Handling
 
-- Prefer early returns for guard clauses (see `ResearchManager.chat`).
+- Prefer early returns for guard clauses.
 - Use clear print statements for pipeline progress (existing style).
 - Let exceptions bubble up unless a specific recovery path is required.
-- When adding new error handling, keep it minimal and explicit.
+- SSE streams catch exceptions and emit an `{"type": "error", "message": "..."}` event before closing.
 
 ## Logging / Tracing
 
@@ -134,6 +159,7 @@
 ## State and Side Effects
 
 - `ResearchManager` stores report state in memory for Q&A.
+- The FastAPI app holds a single `ResearchManager` instance in `app.state`.
 - Keep shared state minimal; prefer passing values explicitly.
 - Email sending is part of the main pipeline; avoid extra side effects.
 - If adding tests, mock network and email calls.
@@ -150,13 +176,13 @@
 
 - Prompts are often multi-line triple-quoted strings.
 - Preserve spacing and section headers in prompts for readability.
-- Keep “CLAIM #” and “SECTION” formats stable if extending prompts.
+- Keep "CLAIM #" and "SECTION" formats stable if extending prompts.
 - Prefer explicit input labels (e.g., `CLAIMS TO VERIFY:`).
 
 ## File Organization
 
-- Core modules live in repo root (no `src/` directory).
-- Keep new modules at the root unless a new package is introduced.
+- All source code lives under `src/` — do not add new modules at the repo root.
+- `gradio_app.py` at the repo root is the only UI entrypoint; it must not import from `src/core/` or `src/agents/` directly.
 - Update `README.md` if new entrypoints or scripts are added.
 
 ## Documentation Updates
@@ -168,12 +194,16 @@
 
 - Assume network access may be restricted; keep offline workflows.
 - Do not commit changes unless explicitly requested.
-- Do not add tests unless a test harness is introduced.
 
 ## Quick Reference
 
-- App entrypoint: `deep_research.py`
-- Orchestration: `research_manager.py`
-- Models: `new_models.py`
-- Agents: `planner_agent.py`, `writer_agent.py`, `qa_agent.py`, `quality_agent.py`, `brave_search_agent.py`, etc.
-- Search Tools: `search_agent.py` (OpenAI WebSearch), `brave_search_tool.py` (Brave API)
+- API entrypoint: `src/api/main.py` → `uvicorn src.api.main:app`
+- Gradio UI: `gradio_app.py`
+- Orchestration: `src/core/research_manager.py`
+- Domain models: `src/models/domain.py`
+- API DTOs: `src/models/api.py`
+- Config: `src/config/settings.py`
+- Agents: `src/agents/` (planner, writer, qa, quality, brave_search, etc.)
+- DB layer: `src/db/` (pool, sessions, messages)
+- SSE streaming: `src/streaming/sse.py`
+- Tests: `tests/`
