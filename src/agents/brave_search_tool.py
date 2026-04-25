@@ -5,8 +5,8 @@ import time
 import httpx
 from agents import function_tool
 
-from config import BRAVE_RATE_LIMIT_SECONDS
-from usage_tracker import record_tool_call
+from src.config.settings import BRAVE_RATE_LIMIT_SECONDS
+from src.core.usage_tracker import record_tool_call
 
 BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
 MAX_BRAVE_RESULTS = 5
