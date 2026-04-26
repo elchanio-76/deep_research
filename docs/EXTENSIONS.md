@@ -48,7 +48,8 @@ Exports completed research reports as Markdown or PDF via dedicated REST endpoin
 - **Key Functions**:
   - `MarkdownRenderer.render` — deterministic, no escaping of report body
   - `PDFRenderer.render` — wraps `weasyprint` exceptions in `RenderError`
-  - `ExportService.export` — fetches session + messages, builds `DocumentParts`, delegates to renderer
+  - `export(session_id, fmt, pool)` — fetches session + messages, builds `DocumentParts`, delegates to renderer; returns `ExportResult` with content bytes, filename, and media type
+  - `export_to_file(session_id, fmt, pool, export_dir, base_url)` — calls `export()` then writes the file to `EXPORT_DIR` (creating it if needed); returns `(ExportResult, absolute_path, relative_url)`
 
 ### Files to Create/Modify
 

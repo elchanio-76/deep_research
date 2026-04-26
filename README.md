@@ -12,6 +12,7 @@ An intelligent research assistant built with OpenAI's Agents SDK. It conducts co
 - **Cost-Effective Search**: Hybrid routing between OpenAI WebSearch and Brave Search API
 - **Session Management**: Persistent research sessions stored in PostgreSQL
 - **REST API**: FastAPI backend with SSE streaming for any HTTP client
+- **Report Export**: Deterministic Markdown and PDF export of completed research reports
 
 ## Architecture
 
@@ -20,9 +21,11 @@ gradio_app.py  (Gradio thin client — HTTP/SSE only)
       │
       ▼
 src/api/main.py  (FastAPI app)
-  ├── POST /api/research/start  →  SSE stream
-  ├── POST /api/chat            →  SSE stream
-  └── GET/DELETE /api/sessions  →  JSON
+  ├── POST /api/research/start        →  SSE stream
+  ├── POST /api/chat                  →  SSE stream
+  ├── GET/DELETE /api/sessions        →  JSON
+  └── GET /api/export/{id}/markdown   →  Markdown file / URL
+      GET /api/export/{id}/pdf        →  PDF file / URL
       │
       ▼
 src/core/research_manager.py  (orchestrator, async generators)
@@ -69,6 +72,14 @@ src/
 │   └── messages.py      # Message insert/fetch
 ├── streaming/
 │   └── sse.py           # SSE event formatting + stream adapters
+├── export/
+│   ├── router.py        # GET /api/export/{id}/markdown, /pdf
+│   ├── service.py       # Export orchestration (fetch session, render, write)
+│   ├── models.py        # ExportFormat, DeliveryMode, ExportResult, ExportUrlResponse
+│   ├── errors.py        # SessionNotFoundError, ReportNotReadyError, RenderError
+│   └── renderers/
+│       ├── markdown.py  # Pure Markdown renderer
+│       └── pdf.py       # Markdown → HTML → PDF via weasyprint
 └── config/
     └── settings.py      # All constants + env loading
 ```
@@ -90,6 +101,8 @@ src/
    SENDGRID_API_KEY=your_sendgrid_key      # optional: email reports
    FROM_EMAIL=you@example.com              # optional: email sender
    TO_EMAIL=recipient@example.com          # optional: email recipient
+   EXPORT_DIR=./exports                    # optional: server-side export directory (default: ./exports)
+   EXPORT_BASE_URL=/exports                # optional: URL prefix for exported files (default: /exports)
    ```
 
 3. **Start the API server**:
@@ -166,6 +179,32 @@ Deletes a session and its messages. Returns 204.
 ### `GET /api/sessions/{session_id}/cost`
 
 Returns token usage and cost summary for a session.
+
+### `GET /api/export/{session_id}/markdown`
+
+Export a completed session report as a Markdown document.
+
+**Query parameters:**
+- `delivery_mode` (optional, default `download`): `download` streams the file in the response body; `url` writes the file server-side and returns a JSON object.
+
+**Responses:**
+- `200` — Markdown file (`Content-Type: text/markdown`) or `{"file_path": "...", "url": "..."}` JSON.
+- `404` — Session not found.
+- `422` — Report not yet generated, or invalid parameters.
+- `500` — Database or rendering error.
+
+### `GET /api/export/{session_id}/pdf`
+
+Export a completed session report as a PDF document (generated via weasyprint — no LLM involved).
+
+**Query parameters:**
+- `delivery_mode` (optional, default `download`): same as the Markdown endpoint.
+
+**Responses:**
+- `200` — PDF file (`Content-Type: application/pdf`) or `{"file_path": "...", "url": "..."}` JSON.
+- `404` — Session not found.
+- `422` — Report not yet generated, or invalid parameters.
+- `500` — Database or rendering error.
 
 ## Usage Examples
 
