@@ -2,19 +2,20 @@
 
 ## Scope
 
-- Applies to the entire repository (worktree: `fastapi-refactor` branch).
+- Applies to the entire repository (worktree: `export-formats` branch).
 - No nested AGENTS.md files currently exist.
 
 ## Repo Summary
 
 - Python research assistant using OpenAI Agents SDK with a FastAPI REST backend.
 - Key entrypoint: `uvicorn src.api.main:app` (FastAPI server).
-- Gradio thin client: `gradio_app.py` (consumes the FastAPI API via HTTP/SSE).
+- Gradio thin client: `gradio_app.py` (consumes the FastAPI API via HTTP/SSE; includes export UI).
 - Core orchestration: `src/core/research_manager.py` with async pipelines.
 - Data models use Pydantic in `src/models/domain.py` (domain) and `src/models/api.py` (DTOs).
 - Configuration constants and env loading live in `src/config/settings.py`.
 - Quality & bias analysis is available via the Q&A flow (`/quality`, `/bias`).
 - Cost-effective search routing between OpenAI WebSearch and Brave Search API.
+- Deterministic Markdown and PDF export via `src/export/` (no LLM involved).
 
 ## Cursor/Copilot Rules
 
@@ -36,6 +37,7 @@
 - Async HTTP clients (`aiohttp`, `httpx`) are used in search agents and the Gradio thin client.
 - Optional integrations: email (`sendgrid`), Slack (`slack_sdk`).
 - `hypothesis` and `pytest-asyncio` are used for property-based and async tests.
+- `weasyprint` and `markdown` are used by `src/export/` for PDF rendering (no LLM).
 - Keep dependency additions minimal and update `requirements.txt`.
 
 ## Build / Run Commands
@@ -51,6 +53,9 @@
 - `.env` is loaded in `src/api/main.py` via `load_dotenv(override=True)` during lifespan startup.
 - Ensure `OPENAI_API_KEY` and `DATABASE_URL` are set before running.
 - Network access is required for search agents and model calls.
+- Export configuration (optional, read at request time):
+  - `EXPORT_DIR` — server-side directory for `delivery_mode=url` exports (default: `./exports`).
+  - `EXPORT_BASE_URL` — URL prefix returned in export URL responses (default: `/exports`).
 - If adding new integrations, document their env vars in `README.md`.
 
 ## Lint / Format Commands
@@ -92,10 +97,18 @@ src/
 │   ├── pool.py    # asyncpg pool lifecycle
 │   ├── sessions.py # Session CRUD queries
 │   └── messages.py # Message insert/fetch queries
+├── export/        # Deterministic export pipeline (no LLM)
+│   ├── router.py      # GET /api/export/{id}/markdown, /pdf
+│   ├── service.py     # Fetch session + messages, build DocumentParts, delegate to renderers
+│   ├── models.py      # ExportFormat, DeliveryMode, DocumentParts, ExportResult, ExportUrlResponse
+│   ├── errors.py      # SessionNotFoundError, ReportNotReadyError, RenderError
+│   └── renderers/
+│       ├── markdown.py  # Pure render(parts) → str
+│       └── pdf.py       # render(parts) → bytes via markdown → HTML → weasyprint
 ├── streaming/
 │   └── sse.py     # SSE event formatting + async generator adapters
 └── config/
-    └── settings.py # All constants + env loading
+    └── settings.py # All constants + env loading (incl. EXPORT_DIR, EXPORT_BASE_URL)
 ```
 
 ## Code Style (Python)
@@ -183,6 +196,7 @@ src/
 
 - All source code lives under `src/` — do not add new modules at the repo root.
 - `gradio_app.py` at the repo root is the only UI entrypoint; it must not import from `src/core/` or `src/agents/` directly.
+- `src/export/` is a self-contained package; its router uses only `get_pool` — never `get_research_manager` or any agent module.
 - Update `README.md` if new entrypoints or scripts are added.
 
 ## Documentation Updates
@@ -198,7 +212,7 @@ src/
 ## Quick Reference
 
 - API entrypoint: `src/api/main.py` → `uvicorn src.api.main:app`
-- Gradio UI: `gradio_app.py`
+- Gradio UI: `gradio_app.py` (includes export format dropdown + download button)
 - Orchestration: `src/core/research_manager.py`
 - Domain models: `src/models/domain.py`
 - API DTOs: `src/models/api.py`
@@ -206,5 +220,6 @@ src/
 - Agents: `src/agents/` (planner, writer, qa, quality, brave_search, etc.)
 - DB layer: `src/db/` (pool, sessions, messages)
 - SSE streaming: `src/streaming/sse.py`
+- Export pipeline: `src/export/` (router, service, renderers, models, errors)
 - Tests: `tests/`
 - Feature plans and documentation: `docs/`

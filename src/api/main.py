@@ -8,6 +8,7 @@ from src.api.research import router as research_router
 from src.api.sessions import router as sessions_router
 from src.core.research_manager import ResearchManager
 from src.db.pool import close_pool, init_db
+from src.export.router import router as export_router
 
 
 @asynccontextmanager
@@ -24,3 +25,4 @@ app = FastAPI(title="Deep Research API", lifespan=lifespan)
 app.include_router(research_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
 app.include_router(sessions_router, prefix="/api")
+app.include_router(export_router, prefix="/api")

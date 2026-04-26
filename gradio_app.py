@@ -6,6 +6,7 @@ No imports from src/core/ or src/agents/ — all communication is over HTTP.
 
 import json
 import os
+import tempfile
 
 import gradio as gr
 import httpx
@@ -259,6 +260,38 @@ async def chat(message: str, history: list[dict], session_id: str | None):
         yield history, ""
 
 
+async def export_report(session_id: str | None, fmt: str):
+    """Export the current session report as Markdown or PDF."""
+    if not session_id:
+        return gr.update(value=None, visible=False)
+
+    ext = "pdf" if fmt == "pdf" else "md"
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.get(
+                f"{API_BASE}/export/{session_id}/{fmt}",
+                params={"delivery_mode": "download"},
+            )
+            if resp.status_code in (404, 422):
+                gr.Warning(
+                    f"Export unavailable: {resp.json().get('detail', resp.text)}"
+                )
+                return gr.update(value=None, visible=False)
+            resp.raise_for_status()
+
+        # Write bytes to a named temp file so Gradio can serve it
+        with tempfile.NamedTemporaryFile(
+            delete=False, suffix=f".{ext}", prefix=f"report-{session_id}-"
+        ) as tmp:
+            tmp.write(resp.content)
+            tmp_path = tmp.name
+        return gr.update(value=tmp_path, visible=True)
+
+    except Exception as e:
+        print(f"[gradio_app] export_report error: {e}")
+        return gr.update(value=None, visible=False)
+
+
 async def refresh_sessions():
     choices = await _list_sessions_api()
     return gr.update(choices=choices)
@@ -305,7 +338,17 @@ async def load_session(session_id: str):
 
 def new_session():
     """Reset all UI state for a new research session."""
-    return "", "", [], "", SEARCH_MODE_DEFAULT, False, None, gr.update(value=None)
+    return (
+        "",
+        "",
+        [],
+        "",
+        SEARCH_MODE_DEFAULT,
+        False,
+        None,
+        gr.update(value=None),
+        gr.update(value=None, visible=False),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -339,6 +382,16 @@ with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
             run_button = gr.Button("Run", variant="primary")
             report = gr.Markdown(label="Report")
             cost_summary = gr.Markdown(label="Session Cost Summary")
+
+            with gr.Row():
+                export_format_dropdown = gr.Dropdown(
+                    label="Export Format",
+                    choices=[("Markdown", "markdown"), ("PDF", "pdf")],
+                    value="markdown",
+                    scale=1,
+                )
+                export_button = gr.Button("Export Report", variant="secondary", scale=1)
+                export_file_output = gr.File(label="Download", visible=False, scale=2)
 
             gr.Markdown("## Q&A")
             chatbot = gr.Chatbot(label="Q&A", type="messages")
@@ -401,7 +454,14 @@ with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
             cost_effective_toggle,
             session_state,
             session_radio,
+            export_file_output,
         ],
+    )
+
+    export_button.click(
+        fn=export_report,
+        inputs=[session_state, export_format_dropdown],
+        outputs=[export_file_output],
     )
 
 

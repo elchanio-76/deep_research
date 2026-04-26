@@ -4,10 +4,9 @@ inclusion: always
 
 ## Git Worktree & Branch Setup
 
-All work related to the FastAPI backend refactor MUST take place in the dedicated worktree and branch — never on `main`.
+All work related to the export formats refactor MUST take place in the dedicated  branch — never on `main`.
 
-- Worktree path: `/home/lchanio/projects/deep-research-fastapi`
-- Branch: `fastapi-refactor`
+- Branch: `export-formats`
 
 Before making any changes, verify the active branch:
 
@@ -15,10 +14,10 @@ Before making any changes, verify the active branch:
 git branch --show-current
 ```
 
-If the output is not `fastapi-refactor`, switch to the correct worktree before proceeding:
+If the output is not `export-formats`, switch to the correct branch before proceeding:
 
 ```bash
-cd /home/lchanio/projects/deep-research-fastapi
+git switch export-formats
 ```
 
 Do NOT commit or apply changes to the `main` branch or any other worktree unless explicitly instructed.
