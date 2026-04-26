@@ -29,29 +29,34 @@ Validates claims in generated reports by cross-referencing sources and adds prop
 - `research_manager.py` - Add citation verification step
 - Update `ReportData` model to include citations
 
-## 2. Multi-Format Export Agent
+## 2. Multi-Format Export
+
+*In progress — LLM-free, deterministic export pipeline*
 
 ### Overview
 
-Converts research reports into various professional formats (PDF, PowerPoint, Word) with appropriate styling.
+Exports completed research reports as Markdown or PDF via dedicated REST endpoints. No LLM is involved — rendering is pure document assembly.
 
 ### Implementation Plan
 
-- **New Agent**: `export_agent.py`
-- **Output Model**: `ExportData` with format type and file paths
-- **Tools**: Document generation functions (PDF, DOCX, PPTX libraries)
-- **Integration**: Add export options to Gradio UI
+- **New Package**: `src/export/` with router, service, renderers, models, and error types
+- **Endpoints**: `GET /api/export/{session_id}/markdown` and `GET /api/export/{session_id}/pdf`
+- **Delivery modes**: `download` (streaming response) or `url` (write to `EXPORT_DIR`, return JSON)
+- **Renderers**:
+  - `src/export/renderers/markdown.py` — pure `render(parts: DocumentParts) -> str`; outputs YAML-style metadata block → report body (verbatim) → optional `## Q&A History` section
+  - `src/export/renderers/pdf.py` — converts Markdown → HTML via `markdown` library → PDF via `weasyprint`
 - **Key Functions**:
-  - Parse markdown report structure
-  - Generate executive summary slides
-  - Create formatted documents with headers/footers
-  - Add charts/visualizations where appropriate
+  - `MarkdownRenderer.render` — deterministic, no escaping of report body
+  - `PDFRenderer.render` — wraps `weasyprint` exceptions in `RenderError`
+  - `ExportService.export` — fetches session + messages, builds `DocumentParts`, delegates to renderer
 
 ### Files to Create/Modify
 
-- `export_agent.py` - New agent with document generation tools
-- `deep_research.py` - Add export buttons to UI
-- `requirements.txt` - Add document libraries (reportlab, python-docx, python-pptx)
+- `src/export/` — new package (router, service, renderers, models, errors)
+- `src/api/main.py` — register `export_router` under `/api`
+- `gradio_app.py` — add format dropdown, export button, and file download component
+- `requirements.txt` — add `weasyprint`, `markdown`
+- `src/config/settings.py` — add `EXPORT_DIR` and `EXPORT_BASE_URL` constants
 
 ## 3. Research Memory & Knowledge Base Agent
 

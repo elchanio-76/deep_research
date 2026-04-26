@@ -6,24 +6,24 @@ Add two deterministic, LLM-free export endpoints (`GET /api/export/{session_id}/
 
 ## Tasks
 
-- [ ] 1. Add dependencies and configuration
+- [x] 1. Add dependencies and configuration
   - Add `weasyprint` and `markdown` (or `mistune`) to `requirements.txt`
   - Add `EXPORT_DIR` (default `./exports`) and `EXPORT_BASE_URL` (default `/exports`) constants to `src/config/settings.py`, reading from environment variables via `os.getenv`
   - _Requirements: 5.1, 5.2, 5.3_
 
-- [ ] 2. Create `src/export/` package skeleton and internal models
-  - [ ] 2.1 Create `src/export/__init__.py` (empty package marker) and `src/export/renderers/__init__.py` (empty)
+- [x] 2. Create `src/export/` package skeleton and internal models
+  - [x] 2.1 Create `src/export/__init__.py` (empty package marker) and `src/export/renderers/__init__.py` (empty)
     - _Requirements: 6.1_
-  - [ ] 2.2 Create `src/export/errors.py` with `ExportError`, `SessionNotFoundError`, `ReportNotReadyError`, and `RenderError(reason: str)` exception classes
+  - [x] 2.2 Create `src/export/errors.py` with `ExportError`, `SessionNotFoundError`, `ReportNotReadyError`, and `RenderError(reason: str)` exception classes
     - _Requirements: 8.1, 8.2, 8.3, 8.4_
-  - [ ] 2.3 Create `src/export/models.py` with `ExportFormat` enum, `DeliveryMode` enum, `QAPair` dataclass, `MetadataHeader` dataclass, `DocumentParts` dataclass, `ExportResult` dataclass, and `ExportUrlResponse` Pydantic model
+  - [x] 2.3 Create `src/export/models.py` with `ExportFormat` enum, `DeliveryMode` enum, `QAPair` dataclass, `MetadataHeader` dataclass, `DocumentParts` dataclass, `ExportResult` dataclass, and `ExportUrlResponse` Pydantic model
     - Title derivation logic: use `session.header` if non-null/non-empty, else `initial_prompt[:120]` + `"…"` if truncated
     - `exported_at` uses `datetime.now(timezone.utc).isoformat()`
     - Filename pattern: `report-{session_id}.md` / `report-{session_id}.pdf`
     - _Requirements: 3.2, 3.3, 3.4, 4.4_
 
 - [ ] 3. Implement `MarkdownRenderer`
-  - [ ] 3.1 Create `src/export/renderers/markdown.py` with a pure `render(parts: DocumentParts) -> str` function
+  - [x] 3.1 Create `src/export/renderers/markdown.py` with a pure `render(parts: DocumentParts) -> str` function
     - Output order: fenced YAML-style metadata block → report body (verbatim) → `## Q&A History` section (omitted when `parts.qa_pairs` is empty)
     - Metadata block contains `title`, `session_id`, `exported_at`, `format`
     - Q&A section: each pair rendered as `**Q:** ...` / `**A:** ...` blocks in order

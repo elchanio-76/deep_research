@@ -1,3 +1,9 @@
+import os
+
+# Export config
+EXPORT_DIR = os.getenv("EXPORT_DIR", "./exports")
+EXPORT_BASE_URL = os.getenv("EXPORT_BASE_URL", "/exports")
+
 QUALITY_AGENT_MAX_SEARCHES = 3
 DEFAULT_NUM_SEARCHES = 5
 FACT_CHECK_CONFIDENCE_THRESHOLD = 70
