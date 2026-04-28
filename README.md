@@ -136,10 +136,11 @@ Start a research pipeline. Returns an SSE stream.
 
 **SSE event sequence:**
 ```
-data: {"type": "progress", "message": "Planning searches..."}
-data: {"type": "progress", "message": "Executing searches..."}
-data: {"type": "report",   "content": "# Research Report\n\n..."}
-data: {"type": "cost",     "summary": {"total_input_tokens": 15234, ...}}
+data: {"type": "progress",   "message": "Planning searches..."}
+data: {"type": "progress",   "message": "Executing searches..."}
+data: {"type": "report",     "content": "# Research Report\n\n..."}
+data: {"type": "cost",       "summary": {"total_input_tokens": 15234, ...}}
+data: {"type": "session_id", "session_id": "uuid-of-created-session"}
 data: {"type": "complete"}
 ```
 
