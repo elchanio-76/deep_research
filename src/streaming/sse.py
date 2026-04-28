@@ -40,6 +40,10 @@ def format_complete() -> str:
     return format_event("complete")
 
 
+def format_session_id(session_id: str) -> str:
+    return format_event("session_id", session_id=session_id)
+
+
 # ---------------------------------------------------------------------------
 # Async generators — wrap ResearchManager generators as SSE event streams
 # ---------------------------------------------------------------------------
@@ -61,6 +65,8 @@ async def research_event_stream(
                 markdown = chunk[len(_FINAL_REPORT_PREFIX) :]
                 yield format_report(markdown)
                 yield format_cost(rm._cost_summary_snapshot())
+                if rm.current_session_id is not None:
+                    yield format_session_id(str(rm.current_session_id))
                 yield format_complete()
             elif chunk.strip() == "Research complete!":
                 # complete is already emitted after the report yield; skip

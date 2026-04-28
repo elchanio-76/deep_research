@@ -101,12 +101,13 @@ async def _delete_session_api(session_id: str) -> bool:
 async def run(query: str, search_mode: str, cost_effective: bool):
     """Stream research results from the API via SSE."""
     if not query.strip():
-        yield "", "", []
+        yield "", "", [], None
         return
 
     report_acc = ""
     cost_md = ""
     progress_lines: list[str] = []
+    captured_session_id: str | None = None
 
     payload = {
         "query": query,
@@ -139,31 +140,35 @@ async def run(query: str, search_mode: str, cost_effective: bool):
                     if etype == "progress":
                         msg = event.get("message", "")
                         progress_lines.append(msg)
-                        # Show progress in the report area while running
-                        yield "\n".join(progress_lines), cost_md, []
+                        yield "\n".join(
+                            progress_lines
+                        ), cost_md, [], captured_session_id
 
                     elif etype == "report":
                         report_acc = event.get("content", "")
-                        yield report_acc, cost_md, []
+                        yield report_acc, cost_md, [], captured_session_id
 
                     elif etype == "cost":
                         cost_md = _cost_text(event.get("summary", {}))
-                        yield report_acc, cost_md, []
+                        yield report_acc, cost_md, [], captured_session_id
+
+                    elif etype == "session_id":
+                        captured_session_id = event.get("session_id")
+                        yield report_acc, cost_md, [], captured_session_id
 
                     elif etype == "complete":
-                        # Refresh session list after completion
-                        yield report_acc, cost_md, []
+                        yield report_acc, cost_md, [], captured_session_id
                         break
 
                     elif etype == "error":
                         err = event.get("message", "Unknown error")
-                        yield f"**Error:** {err}", cost_md, []
+                        yield f"**Error:** {err}", cost_md, [], captured_session_id
                         break
 
     except httpx.HTTPStatusError as e:
-        yield f"**API error {e.response.status_code}:** {e.response.text}", "", []
+        yield f"**API error {e.response.status_code}:** {e.response.text}", "", [], None
     except Exception as e:
-        yield f"**Connection error:** {e}", "", []
+        yield f"**Connection error:** {e}", "", [], None
 
 
 async def chat(message: str, history: list[dict], session_id: str | None):
@@ -184,8 +189,16 @@ async def chat(message: str, history: list[dict], session_id: str | None):
     history.append({"role": "user", "content": message})
     yield history, ""
 
-    # Build history payload (exclude the message we just appended)
-    api_history = [{"role": m["role"], "content": m["content"]} for m in history[:-1]]
+    # Build history payload — coerce content to str to handle Gradio 6.x
+    # multimodal dicts and strip the message we just appended.
+    def _to_str(v: object) -> str:
+        return v if isinstance(v, str) else json.dumps(v)
+
+    api_history = [
+        {"role": m["role"], "content": _to_str(m["content"])}
+        for m in history[:-1]
+        if m.get("role") in ("user", "assistant")
+    ]
 
     payload = {
         "session_id": session_id,
@@ -355,7 +368,7 @@ def new_session():
 # Gradio UI
 # ---------------------------------------------------------------------------
 
-with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
+with gr.Blocks() as ui:
     gr.Markdown("# Deep Research")
     session_state = gr.State(None)
 
@@ -394,7 +407,7 @@ with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
                 export_file_output = gr.File(label="Download", visible=False, scale=2)
 
             gr.Markdown("## Q&A")
-            chatbot = gr.Chatbot(label="Q&A", type="messages")
+            chatbot = gr.Chatbot(label="Q&A")
             chat_input = gr.Textbox(label="Ask a question")
             chat_button = gr.Button("Send")
 
@@ -403,12 +416,12 @@ with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
     run_button.click(
         fn=run,
         inputs=[query_textbox, search_mode, cost_effective_toggle],
-        outputs=[report, cost_summary, chatbot],
+        outputs=[report, cost_summary, chatbot, session_state],
     )
     query_textbox.submit(
         fn=run,
         inputs=[query_textbox, search_mode, cost_effective_toggle],
-        outputs=[report, cost_summary, chatbot],
+        outputs=[report, cost_summary, chatbot, session_state],
     )
 
     chat_button.click(
@@ -466,4 +479,4 @@ with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
 
 
 if __name__ == "__main__":
-    ui.launch(inbrowser=True)
+    ui.launch(inbrowser=True, theme=gr.themes.Default(primary_hue="sky"))
