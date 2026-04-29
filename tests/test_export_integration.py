@@ -11,9 +11,7 @@ Requirements: 5.3, 6.1, 6.3
 from __future__ import annotations
 
 import ast
-import importlib
 import os
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -68,12 +66,24 @@ def test_export_pdf_endpoint_in_openapi():
     ), "PDF export endpoint not found in /openapi.json"
 
 
+def test_export_docx_endpoint_in_openapi():
+    """GET /api/export/{session_id}/docx must appear in the OpenAPI schema."""
+    client = _get_app_client()
+    resp = client.get("/openapi.json")
+    assert resp.status_code == 200
+    paths = resp.json().get("paths", {})
+    assert (
+        "/api/export/{session_id}/docx" in paths
+    ), "DOCX export endpoint not found in /openapi.json"
+
+
 def test_export_endpoints_have_get_method():
     """Both export endpoints must be registered as GET operations."""
     client = _get_app_client()
     paths = client.get("/openapi.json").json()["paths"]
     assert "get" in paths["/api/export/{session_id}/markdown"]
     assert "get" in paths["/api/export/{session_id}/pdf"]
+    assert "get" in paths["/api/export/{session_id}/docx"]
 
 
 def test_export_endpoints_have_summary():
@@ -82,8 +92,10 @@ def test_export_endpoints_have_summary():
     paths = client.get("/openapi.json").json()["paths"]
     md_op = paths["/api/export/{session_id}/markdown"]["get"]
     pdf_op = paths["/api/export/{session_id}/pdf"]["get"]
+    docx_op = paths["/api/export/{session_id}/docx"]["get"]
     assert md_op.get("summary"), "Markdown endpoint missing OpenAPI summary"
     assert pdf_op.get("summary"), "PDF endpoint missing OpenAPI summary"
+    assert docx_op.get("summary"), "DOCX endpoint missing OpenAPI summary"
 
 
 # ---------------------------------------------------------------------------

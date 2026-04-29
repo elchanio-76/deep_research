@@ -274,11 +274,12 @@ async def chat(message: str, history: list[dict], session_id: str | None):
 
 
 async def export_report(session_id: str | None, fmt: str):
-    """Export the current session report as Markdown or PDF."""
+    """Export the current session report as Markdown, PDF, or DOCX."""
     if not session_id:
         return gr.update(value=None, visible=False)
 
-    ext = "pdf" if fmt == "pdf" else "md"
+    ext_map = {"pdf": "pdf", "docx": "docx"}
+    ext = ext_map.get(fmt, "md")
     try:
         async with httpx.AsyncClient(timeout=60) as client:
             resp = await client.get(
@@ -399,7 +400,11 @@ with gr.Blocks() as ui:
             with gr.Row():
                 export_format_dropdown = gr.Dropdown(
                     label="Export Format",
-                    choices=[("Markdown", "markdown"), ("PDF", "pdf")],
+                    choices=[
+                        ("Markdown", "markdown"),
+                        ("PDF", "pdf"),
+                        ("MS Word", "docx"),
+                    ],
                     value="markdown",
                     scale=1,
                 )

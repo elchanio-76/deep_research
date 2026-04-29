@@ -5,3 +5,7 @@ exports/
 .pytest_cache/
 .ruff_cache/
 .hypothesis/
+
+*.bak
+
+security_report.md

@@ -161,3 +161,59 @@ async def export_pdf(
         return _error_json(500, "PDF rendering failed", reason=exc.reason)
     except asyncpg.PostgresError as exc:
         return _error_json(500, f"Database error: {type(exc).__name__}")
+
+
+# ---------------------------------------------------------------------------
+# DOCX endpoint
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/{session_id}/docx",
+    summary="Export session report as MS Word",
+    description=(
+        "Export the research report and Q&A conversation history for the given "
+        "session as a Microsoft Word document (.docx).\n\n"
+        "**Parameters**\n"
+        "- `session_id` (path, UUID): the research session to export.\n"
+        "- `delivery_mode` (query, default `download`): `download` streams the "
+        "  file directly in the response body; `url` writes the file to the "
+        "  server-side export directory and returns a JSON object with "
+        "  `file_path` and `url`.\n\n"
+        "**Responses**\n"
+        "- `200 OK`: DOCX file (download mode) or `{file_path, url}` JSON (url mode).\n"
+        "- `404 Not Found`: session does not exist.\n"
+        "- `422 Unprocessable Entity`: report not yet available, or invalid parameters.\n"
+        "- `500 Internal Server Error`: database or rendering failure.\n\n"
+        "No LLM is invoked; the DOCX is generated deterministically from stored "
+        "session data using python-docx."
+    ),
+    response_class=StreamingResponse,
+)
+async def export_docx(
+    session_id: UUID,
+    delivery_mode: DeliveryMode = DeliveryMode.download,
+    pool: asyncpg.Pool = Depends(get_pool),
+):
+    """Export a session report as a DOCX document."""
+    try:
+        if delivery_mode == DeliveryMode.download:
+            result = await export(session_id, ExportFormat.docx, pool)
+            return _download_response(
+                result.content, result.media_type, result.filename
+            )
+        else:
+            result, file_path, url = await export_to_file(
+                session_id, ExportFormat.docx, pool, EXPORT_DIR, EXPORT_BASE_URL
+            )
+            return JSONResponse(
+                content=ExportUrlResponse(file_path=file_path, url=url).model_dump()
+            )
+    except SessionNotFoundError as exc:
+        return _error_json(404, str(exc))
+    except ReportNotReadyError as exc:
+        return _error_json(422, str(exc))
+    except RenderError as exc:
+        return _error_json(500, "DOCX rendering failed", reason=exc.reason)
+    except asyncpg.PostgresError as exc:
+        return _error_json(500, f"Database error: {type(exc).__name__}")

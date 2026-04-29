@@ -23,6 +23,7 @@ from src.export.models import (
     MetadataHeader,
     QAPair,
 )
+from src.export.renderers import docx as docx_renderer
 from src.export.renderers import markdown as markdown_renderer
 from src.export.renderers import pdf as pdf_renderer
 
@@ -118,9 +119,14 @@ async def export(
             content_str = markdown_renderer.render(parts)
             content = content_str.encode("utf-8")
             media_type = "application/octet-stream"
-        else:
+        elif fmt == ExportFormat.pdf:
             content = pdf_renderer.render(parts)
             media_type = "application/pdf"
+        else:  # docx
+            content = docx_renderer.render(parts)
+            media_type = (
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
     except RenderError:
         raise
     except Exception as exc:

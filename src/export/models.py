@@ -12,6 +12,7 @@ from pydantic import BaseModel
 class ExportFormat(str, Enum):
     markdown = "markdown"
     pdf = "pdf"
+    docx = "docx"
 
 
 class DeliveryMode(str, Enum):
@@ -64,8 +65,12 @@ class ExportResult:
     @staticmethod
     def filename_for(session_id: str, fmt: ExportFormat) -> str:
         """Derive the output filename per Requirement 4.4."""
-        ext = "md" if fmt == ExportFormat.markdown else "pdf"
-        return f"report-{session_id}.{ext}"
+        ext_map = {
+            ExportFormat.markdown: "md",
+            ExportFormat.pdf: "pdf",
+            ExportFormat.docx: "docx",
+        }
+        return f"report-{session_id}.{ext_map[fmt]}"
 
 
 class ExportUrlResponse(BaseModel):
