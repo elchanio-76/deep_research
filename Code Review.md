@@ -1,111 +1,164 @@
-Based on my comprehensive code review of the deep research assistant project, here's a detailed quality, security, and maintainability assessment:
+# Code Review — Deep Research Assistant
 
-## Code Quality Assessment
+Review Date: 2026-04-30
 
-### Strengths:
-1. **Modular Architecture**: Clear separation of concerns with agents in separate files (planner, search, writer, fact-checking, etc.)
-2. **Type Safety**: Extensive use of Pydantic v2 models with type annotations and validators
-3. **Consistent Naming**: Follows Python conventions with snake_case for functions/variables and PascalCase for classes
-4. **Documentation**: README provides excellent architecture overview and setup instructions
-5. **Error Handling**: Most agent interactions include try-except blocks with fallback behavior
-6. **Linting**: Passes all Ruff checks
+## Summary
 
-### Areas for Improvement:
+The project has matured significantly since the last review. A proper FastAPI REST backend replaces the former single-file Gradio server, a PostgreSQL persistence layer has been added, and a comprehensive test suite now exists. The old critical-severity issue (API keys committed to version control) is resolved — `.env` is gitignored. The new issues below are architectural and maintainability concerns appropriate to the project's current state.
 
-#### 1. Security Issues
-**Critical**: Hardcoded API keys in `.env` file (line 4-28) - these should be removed from version control and obtained from secure vaults
-**High**: Sensitive credentials (AWS, OpenAI, SendGrid, etc.) exposed in the `.env` file
-**Medium**: No input validation for user queries in the Gradio interface
-**Low**: Lack of rate limiting on API endpoints
+---
 
-#### 2. Maintainability Issues
-**High**: 
-- `citation_agent.py` is marked as obsolete but still exists
-- `config.py` has hardcoded email recipients and AWS regions
-- No comprehensive test suite
-- No logging framework - using print statements instead
+## Strengths
 
-**Medium**:
-- Some agents have overly long instructions in code (e.g., `verification_tools.py` has extensive agent instructions)
-- `research_manager.py` is quite large (380 lines) and handles multiple responsibilities
-- No dependency pinning for security updates
+1. **Clean layered architecture** — `src/api/`, `src/core/`, `src/agents/`, `src/models/`, `src/db/`, `src/export/`, `src/streaming/` each own a clear slice of responsibility.
+2. **Strong Pydantic v2 modeling** — domain models in `domain.py` use `Field` constraints, `field_validator`, `ConfigDict`, and cross-field validation. API DTOs in `api.py` add pattern-validated enums and `min_length` guards at the boundary.
+3. **Substantial test suite** — 9 files, ~2 500 lines, covering API integration, export integration, SSE formatting, property-based (Hypothesis) renderer tests, and DTO validation. Significant improvement over the previous review.
+4. **Stateless export pipeline** — `src/export/service.py` receives the pool as a parameter and invokes no LLM. Renderers are pure functions. Error hierarchy (`SessionNotFoundError`, `ReportNotReadyError`, `RenderError`) maps cleanly to HTTP status codes in the router.
+5. **Safe SQL** — all DB queries in `src/db/` use asyncpg parameterized statements (`$1`, `$2`, …). No string interpolation into SQL.
+6. **ContextVar usage tracking** — `src/core/usage_tracker.py` uses a `ContextVar` so per-request token tracking is coroutine-safe across concurrent async tasks.
+7. **SSE disconnect detection** — `research_event_stream` and `chat_event_stream` check `request.is_disconnected()` on each iteration, preventing runaway agent chains after the client drops.
+8. **AGENTS.md** — thorough project documentation for context, conventions, and commands.
 
-**Low**:
-- Inconsistent use of docstrings - some functions have them, others don't
-- Variable names could be more descriptive in some places
+---
 
-#### 3. Performance Issues
-**Medium**:
-- No caching for search results or agent responses
-- No concurrency limits on search operations
-- Fact-checking strategies could be optimized for parallel execution
+## Issues
 
-#### 4. Configuration Issues
-**High**:
-- Environment variables in `.env` are not validated
-- No support for multiple environments (development, staging, production)
-- Model costs in `config.py` (lines 41-51) are hardcoded and may become outdated
+### High Priority
 
-**Medium**:
-- Email configuration (lines 21-23 in `config.py`) should be in environment variables
+#### 1. Shared mutable `ResearchManager` is not concurrency-safe *(known single-user limitation)*
 
-#### 5. Testing Issues
-**Critical**: No test files or test framework configured
-**High**: No integration tests for the research pipeline
-**Medium**: No unit tests for individual agents or utility functions
+**File:** `src/api/main.py:22`, `src/api/dependencies.py:11`
 
-## Detailed Vulnerability Analysis
+A single `ResearchManager` instance is stored in `app.state`. The class has mutable instance state: `self.report`, `self.search_results`, `self.last_query`, `self.current_session_id`, `self.session_usage`, etc. Two concurrent `/api/research/start` requests (e.g. two browser tabs) would corrupt each other's state — `reset_session_state()` at the start of `run()` wipes the other in-flight request's counters, and both coroutines then race on `self.current_session_id`, causing A's report to be persisted under B's session.
 
-### Security Vulnerabilities:
+This does not affect the current single-user sequential use case. It is a pre-requisite to address before adding multi-user support.
 
-1. **Hardcoded Credentials**: The `.env` file contains sensitive API keys and credentials that are checked into version control. This is a severe security risk.
+**Fix:** Move the mutable fields out of instance state and into local variables scoped to each `run()` / `chat()` invocation, leaving `ResearchManager` holding only the `pool`.
 
-2. **Insecure Secrets Management**: Secrets are stored in plain text in the `.env` file and accessed directly without any encryption or secure vault integration.
+#### 2. `citation_agent.py` is dead code [FIXED]
 
-3. **Lack of Input Validation**: User queries are passed directly to agents without validation, potentially leading to injection attacks or prompt engineering vulnerabilities.
+**File:** `src/agents/citation_agent.py`
 
-4. **No Rate Limiting**: The Gradio interface allows unlimited requests, potentially leading to API rate limiting or abuse.
+The file defines `citation_agent` and `citation_agent_tool` but is not imported anywhere in `src/` or `tests/`. Its functionality was superseded by `verification_tools.py`. It adds ~140 lines of confusion and maintenance burden.
 
-5. **Insufficient Error Handling**: Some error conditions result in silent failures or generic error messages that don't provide enough context.
+**Fix:** Delete the file.
 
-### Maintainability Vulnerabilities:
+#### 3. Hardcoded email config in `settings.py` [FIXED]
 
-1. **Obsolete Code**: `citation_agent.py` is marked as obsolete (README line 221) but still exists in the codebase, causing confusion.
+**File:** `src/config/settings.py:29-30`
 
-2. **Monolithic File**: `research_manager.py` handles orchestration, chat, email sending, and report management - violates single responsibility principle.
+```python
+RECIPIENT = "lchanio@echyperion.com"
+SENDER = "proklos+ses@gmail.com"
+```
 
-3. **Tight Coupling**: Agents are directly imported and instantiated in `research_manager.py`, making it hard to test and replace components.
+These are production values committed to source control. Any other deployment of this project will send email to/from the original developer's addresses unless the code is edited.
 
-4. **Lack of Documentation**: Many functions and classes lack docstrings, making it difficult for new developers to understand the codebase.
+**Fix:** Read from env vars: `RECIPIENT = os.getenv("EMAIL_RECIPIENT", "")` and `SENDER = os.getenv("EMAIL_SENDER", "")`.
 
-## Recommendations for Improvement
+#### 4. Inline DDL migrations in `pool.py`
 
-### Immediate Fixes (Critical/High Priority):
+**File:** `src/db/pool.py:28-75`
 
-1. **Remove Hardcoded Secrets**: Remove all API keys from `.env` and use secure secret management (AWS Secrets Manager, HashiCorp Vault)
-2. **Add Environment Variable Validation**: Use pydantic-settings to validate and type-check environment variables
-3. **Implement Input Validation**: Add query validation in the Gradio interface
-4. **Configure Logging**: Replace print statements with Python's logging module
-5. **Remove Obsolete Code**: Delete `citation_agent.py` since its functionality is in `verification_tools.py`
+`init_db()` runs `CREATE TABLE IF NOT EXISTS` plus several `ALTER TABLE ADD COLUMN IF NOT EXISTS` statements on every application start. This works for early-stage development but is not a migration system: there is no ordering, no rollback, no record of what has been applied, and adding a new column requires inserting another `ALTER TABLE` block into this function. If two server instances start simultaneously, the DDL race is benign now (IF NOT EXISTS) but will break if a future migration is not idempotent.
 
-### Short-Term Improvements (Medium Priority):
+**Recommendation:** Introduce Alembic (or a lightweight SQL migration runner like `yoyo`) even at low complexity. This is not an immediate blocker, but the current approach does not scale beyond a few more schema changes.
 
-1. **Add Testing Infrastructure**: Set up pytest with basic unit tests for agents and models
-2. **Implement Caching**: Add caching for search results and agent responses
-3. **Refactor Research Manager**: Split into smaller, focused classes
-4. **Add Rate Limiting**: Implement rate limiting on Gradio interface
-5. **Update Documentation**: Add docstrings to all functions and classes
+---
 
-### Long-Term Improvements (Low Priority):
+### Medium Priority
 
-1. **Implement Monitoring**: Add Prometheus/Grafana metrics for pipeline performance
-2. **Add Circuit Breakers**: Implement circuit breaker pattern for API calls
-3. **Containerization**: Dockerize the application for consistent deployment
-4. **CI/CD Pipeline**: Set up GitHub Actions for testing and deployment
-5. **Advanced Error Handling**: Implement structured error reporting
+#### 5. No upper bound on query length [FIXED]
 
-## Overall Assessment
+**File:** `src/models/api.py:11`
 
-The deep research assistant is a well-structured project with a clear architecture and good code quality. However, it has significant security vulnerabilities related to secrets management and input validation. The maintainability could be improved by refactoring large files, adding tests, and improving documentation. With proper security hardening and code improvements, this project has the potential to be a robust research tool.
+```python
+query: str = Field(..., min_length=1, description="Research query")
+```
 
-Review Date: 17/1/26
+There is no `max_length`. An adversarial client can submit a multi-megabyte string that propagates through the entire agent pipeline, consuming tokens and potentially causing OOM or timeout issues. `message` in `ChatRequest` has the same gap.
+
+**Fix:** Add `max_length=2000` (or similar reasonable cap) to both fields.
+
+#### 6. Double database fetch in the chat endpoint
+
+**File:** `src/api/chat.py:25-36`
+
+The handler calls `db_sessions.load_session(pool, body.session_id)` to validate the session exists, then immediately calls `rm.load_session(str(body.session_id))` which calls `db_sessions.load_session` a second time internally. This is an unnecessary round-trip on every chat message.
+
+**Fix:** Pass the already-fetched row to `load_session`, or combine the guard and hydration into a single DB call.
+
+#### 7. Unused public method `search()` [FIXED]
+
+**File:** `src/core/research_manager.py` (near line 470)
+
+The standalone `search(item)` method is never called — all search routing now goes through `_search_with_routing()` and `perform_searches()`. It is a public method on the class, so it creates a false impression of the API surface.
+
+**Fix:** Delete the method.
+
+#### 8. `print()` used for all pipeline logging
+
+**File:** `src/core/research_manager.py` (31 occurrences), `src/agents/` (18 more)
+
+Progress, cost summaries, and error context are emitted via `print()`. In production, these go to stdout with no level, no timestamp, and no structured format. There is no way to suppress debug noise or filter by severity.
+
+**Recommendation:** Replace with `import logging; logger = logging.getLogger(__name__)`. Use `logger.info` for progress and `logger.warning`/`logger.error` for failures. This is noted in AGENTS.md as intentional ("existing style") but worth revisiting before any production deployment.
+
+#### 9. `MODEL_COSTS` and model names are not env-overridable
+
+**File:** `src/config/settings.py:17-26, 58-63`
+
+Model identifiers (e.g. `PLANNER_MODEL = "gpt-5"`) and cost rates are compile-time constants. When OpenAI renames or retires a model, every model constant requires a code change and redeploy. Cost rates go stale immediately when pricing changes.
+
+**Recommendation:** Read model names from env vars with sensible defaults. Model costs are harder — consider either accepting staleness and noting it in a comment, or fetching from a pricing API at startup.
+
+---
+
+### Low Priority
+
+#### 10. One failing property-based test [FIXED]
+
+**File:** `tests/test_property_export_renderers.py:270`
+
+`test_property_6_output_filename_pattern` asserts that filenames end with `.md` or `.pdf`, but `ExportFormat` now has three values (`markdown`, `pdf`, `docx`). Hypothesis generates `docx` inputs and the test assertion fails with `expected "report-<id>.pdf", got "report-<id>.docx"`.
+
+**Fix:** Update the `expected_ext` logic to cover all three formats.
+
+#### 11. Ruff linting errors (3 sources) [FIXED]
+
+**Files:** `src/db/sessions.py:1`, `tests/test_api_integration.py:189`, `tests/test_property_export_renderers.py:260-363`
+
+- `src/db/sessions.py` — unused `import json` (F401, auto-fixable)
+- `tests/test_api_integration.py:189` — f-string with no placeholders (F541, auto-fixable)
+- `tests/test_property_export_renderers.py` — 10 E402 errors (module-level imports not at top of file, likely from late-binding to avoid import side effects, but can be restructured)
+
+Run `ruff check . --fix` to resolve the two auto-fixable issues.
+
+#### 12. No test coverage for core orchestration
+
+`research_manager.py` (~500 lines), the individual agents, and the DB layer (`src/db/`) have no direct test coverage. The integration tests mock `ResearchManager` at the boundary, which is appropriate for API tests but means the orchestration logic itself is untested. This is acceptable for now given the LLM dependency, but unit-testable methods like `_normalize_json_payload`, `calculate_total_cost`, `_compute_brave_flags`, and `_build_qa_pairs` in the export service could have tests without any mocking.
+
+---
+
+## Test Suite Results
+
+```
+1 failed, 120 passed  (test_property_6_output_filename_pattern)
+```
+
+All failures are in the test code, not the production code.
+
+---
+
+## Security Posture
+
+| Item | Status |
+|---|---|
+| `.env` in `.gitignore` | ✓ Resolved |
+| Parameterized SQL queries | ✓ Clean |
+| API input validation (type, min_length, pattern) | ✓ Present |
+| No query `max_length` cap | ✗ Missing |
+| Hardcoded email addresses in source | ✗ Present |
+| No rate limiting on research endpoint | ✗ Missing |
+
+The previous critical issue (credentials in VCS) is resolved. The remaining security items are medium-severity.
