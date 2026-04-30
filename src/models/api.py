@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 
 class ResearchStartRequest(BaseModel):
-    query: str = Field(..., min_length=1, description="Research query")
+    query: str = Field(..., min_length=1, max_length=2000, description="Research query")
     search_mode: str = Field(
         default="no_adaptive",
         description="Search mode",
@@ -26,7 +26,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     session_id: UUID
-    message: str = Field(..., min_length=1)
+    message: str = Field(..., min_length=1, max_length=2000)
     history: list[ChatMessage] = Field(default_factory=list)
 
 
