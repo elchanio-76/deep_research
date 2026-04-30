@@ -186,7 +186,7 @@ async def test_research_start_progress_messages(test_client, mock_rm):
         yield "Planning searches...\n"
         yield "Executing searches...\n"
         yield "Writing initial report...\n"
-        yield f"\n---\n## Final Report\n\nDone."
+        yield "\n---\n## Final Report\n\nDone."
 
     mock_rm.run = fake_run
     mock_rm._cost_summary_snapshot.return_value = {

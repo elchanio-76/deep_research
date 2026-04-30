@@ -9,6 +9,27 @@ from hypothesis import strategies as st
 
 from src.export.models import DocumentParts, MetadataHeader, QAPair
 from src.export.renderers import markdown as markdown_renderer
+from src.export.renderers import pdf as pdf_renderer
+
+import uuid as _uuid_module
+
+import asyncpg as _asyncpg
+from fastapi import FastAPI as _FastAPI
+from fastapi.testclient import TestClient as _TestClient
+from unittest.mock import (
+    AsyncMock as _AsyncMock,
+    MagicMock as _MagicMock,
+    patch as _patch,
+)
+
+from src.export.errors import (
+    RenderError as _RenderError,
+    ReportNotReadyError as _ReportNotReadyError,
+    SessionNotFoundError as _SessionNotFoundError,
+)
+from src.export.router import router as _export_router
+
+from src.export.models import ExportFormat, ExportResult
 
 # ---------------------------------------------------------------------------
 # Hypothesis strategies
@@ -257,9 +278,6 @@ def test_property_5_title_derivation_from_initial_prompt(initial_prompt: str) ->
 # Validates: Requirements 4.4
 # ---------------------------------------------------------------------------
 
-import uuid as _uuid_module
-
-from src.export.models import ExportFormat, ExportResult
 
 
 @given(
@@ -293,8 +311,6 @@ def test_property_6_output_filename_pattern(
 # Feature: export-formats, Property 8: PDF output is valid PDF bytes
 # Validates: Requirements 2.3
 # ---------------------------------------------------------------------------
-
-from src.export.renderers import pdf as pdf_renderer
 
 
 # Strategy restricted to printable ASCII to avoid a fontTools/weasyprint bug
@@ -344,23 +360,7 @@ def test_property_8_pdf_output_is_valid_pdf_bytes(parts: DocumentParts) -> None:
 # Router property tests — require a TestClient
 # ---------------------------------------------------------------------------
 
-import uuid as _uuid_module2
 
-import asyncpg as _asyncpg
-from fastapi import FastAPI as _FastAPI
-from fastapi.testclient import TestClient as _TestClient
-from unittest.mock import (
-    AsyncMock as _AsyncMock,
-    MagicMock as _MagicMock,
-    patch as _patch,
-)
-
-from src.export.errors import (
-    RenderError as _RenderError,
-    ReportNotReadyError as _ReportNotReadyError,
-    SessionNotFoundError as _SessionNotFoundError,
-)
-from src.export.router import router as _export_router
 
 
 def _make_test_client() -> _TestClient:
@@ -371,7 +371,7 @@ def _make_test_client() -> _TestClient:
     return _TestClient(app, raise_server_exceptions=False)
 
 
-_VALID_UUID = str(_uuid_module2.UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))
+_VALID_UUID = str(_uuid_module.UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))
 
 # ---------------------------------------------------------------------------
 # Property 7: Invalid delivery_mode produces 422
