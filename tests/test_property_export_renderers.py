@@ -10,6 +10,7 @@ from hypothesis import strategies as st
 from src.export.models import DocumentParts, MetadataHeader, QAPair
 from src.export.renderers import markdown as markdown_renderer
 from src.export.renderers import pdf as pdf_renderer
+from src.export.renderers import docx as docx_renderer
 
 import uuid as _uuid_module
 
@@ -40,7 +41,7 @@ metadata_strategy = st.builds(
     title=st.text(min_size=1, max_size=200),
     session_id=st.uuids().map(str),
     exported_at=st.just("2025-01-01T00:00:00+00:00"),
-    format=st.sampled_from(["markdown", "pdf"]),
+    format=st.sampled_from(["markdown", "pdf", "docx"]),
 )
 
 qa_pair_strategy = st.builds(
@@ -279,7 +280,6 @@ def test_property_5_title_derivation_from_initial_prompt(initial_prompt: str) ->
 # ---------------------------------------------------------------------------
 
 
-
 @given(
     session_id=st.uuids(),
     fmt=st.sampled_from(list(ExportFormat)),
@@ -297,7 +297,11 @@ def test_property_6_output_filename_pattern(
     """
     filename = ExportResult.filename_for(str(session_id), fmt)
 
-    expected_ext = "md" if fmt == ExportFormat.markdown else "pdf"
+    expected_ext = (
+        "md"
+        if fmt == ExportFormat.markdown
+        else "pdf" if fmt == ExportFormat.pdf else "docx"
+    )
     expected = f"report-{session_id}.{expected_ext}"
 
     assert filename == expected, (
@@ -359,8 +363,6 @@ def test_property_8_pdf_output_is_valid_pdf_bytes(parts: DocumentParts) -> None:
 # ---------------------------------------------------------------------------
 # Router property tests — require a TestClient
 # ---------------------------------------------------------------------------
-
-
 
 
 def _make_test_client() -> _TestClient:
