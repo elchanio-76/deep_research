@@ -15,7 +15,7 @@
 - Configuration constants and env loading live in `src/config/settings.py`.
 - Quality & bias analysis is available via the Q&A flow (`/quality`, `/bias`).
 - Cost-effective search routing between OpenAI WebSearch and Brave Search API.
-- Deterministic Markdown and PDF export via `src/export/` (no LLM involved).
+- Deterministic Markdown, DOCX and PDF export via `src/export/` (no LLM involved).
 
 ## Cursor/Copilot Rules
 
@@ -38,6 +38,8 @@
 - Optional integrations: email (`sendgrid`), Slack (`slack_sdk`).
 - `hypothesis` and `pytest-asyncio` are used for property-based and async tests.
 - `weasyprint` and `markdown` are used by `src/export/` for PDF rendering (no LLM).
+- `docx` is used by `src/export/` for DOCX rendering (no LLM).
+- `gradio` v6 is used for the thin client UI.
 - Keep dependency additions minimal and update `requirements.txt`.
 
 ## Build / Run Commands
