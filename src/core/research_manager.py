@@ -689,17 +689,6 @@ exceed the remaining budget.
                 print(f"OpenAI search failed for '{item.query}': {e}")
                 return None
 
-    async def search(self, item: WebSearchItem) -> str | None:
-        """Perform a search for the query."""
-        input_text = f"Search term: {item.query}\nReason for searching: {item.reason}"
-        try:
-            result = await Runner.run(search_agent, input_text)
-            self.update_usage_stats("search_agent", result.context_wrapper.usage)
-            record_tool_call("search_agent", "web_search")
-            return str(result.final_output)
-        except Exception:
-            return None
-
     async def write_report(self, query: str, search_results: list[str]) -> WriterOutput:
         """Write the report for the query."""
         print("Thinking about report...")
