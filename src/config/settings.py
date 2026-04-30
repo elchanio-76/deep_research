@@ -26,8 +26,8 @@ SESSION_TITLE_MODEL = "gpt-5-mini"
 VERIFICATION_TOOL_MODEL = "gpt-4o-mini"
 
 # E-mail config
-RECIPIENT = "lchanio@echyperion.com"
-SENDER = "proklos+ses@gmail.com"
+RECIPIENT = os.getenv("EMAIL_RECIPIENT", "lchanio@echyperion.com")
+SENDER = os.getenv("EMAIL_SENDER", "proklos+ses@gmail.com")
 DEFAULT_AWS_REGION = "eu-north-1"
 
 # Database config
