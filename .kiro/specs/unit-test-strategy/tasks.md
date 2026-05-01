@@ -88,17 +88,17 @@ of production code is required.
     - `@settings(max_examples=100)`
     - **Validates: Requirements 6.5**
 
-- [ ] 2. Checkpoint — run `tests/test_unit_domain.py`
+- [x] 2. Checkpoint — run `tests/test_unit_domain.py`
   - Ensure all tests pass, ask the user if questions arise.
   - `python -m pytest tests/test_unit_domain.py -v`
 
-- [ ] 3. Create `tests/test_unit_research_manager.py`
-  - [ ] 3.1 Add `manager` fixture using `MagicMock(spec=asyncpg.Pool)`
+- [x] 3. Create `tests/test_unit_research_manager.py`
+  - [x] 3.1 Add `manager` fixture using `MagicMock(spec=asyncpg.Pool)`
     - `from unittest.mock import MagicMock` + `import asyncpg`
     - `pool = MagicMock(spec=asyncpg.Pool)` — pool methods raise `AttributeError` if accidentally called
     - _Requirements: 7–12 (shared fixture)_
 
-  - [ ] 3.2 Write example tests for `_normalize_json_payload`
+  - [x] 3.2 Write example tests for `_normalize_json_payload`
     - Test `None` returns `{}` (Requirement 7.1)
     - Test dict argument returned unchanged (Requirement 7.2)
     - Test valid JSON object string returns parsed dict (Requirement 7.3)
@@ -107,27 +107,27 @@ of production code is required.
     - Test `Mapping` (non-dict) returns plain `dict` equivalent (Requirement 7.6)
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6_
 
-  - [ ] 3.3 Write property test for `_normalize_json_payload` round-trip (Property 7)
+  - [x] 3.3 Write property test for `_normalize_json_payload` round-trip (Property 7)
     - **Property 7: _normalize_json_payload round-trips valid JSON objects**
     - Strategy: `json_object_dict = st.dictionaries(keys=st.text(min_size=1, max_size=20), values=st.one_of(st.integers(), st.floats(allow_nan=False), st.text(), st.booleans()), max_size=10)`
     - `@given(d)` — serialize to JSON string, pass to `_normalize_json_payload`, assert result equals `json.loads(s)`
     - `@settings(max_examples=100)`
     - **Validates: Requirements 7.7**
 
-  - [ ] 3.4 Write example tests for `_get_search_budget`
+  - [x] 3.4 Write example tests for `_get_search_budget`
     - Test `"no_adaptive"` returns `DEFAULT_NUM_SEARCHES` (Requirement 8.1)
     - Test `"deep_dive"` returns `DEFAULT_NUM_SEARCHES + 3` (Requirement 8.2)
     - Test `"deep_dive_gap_fill"` returns `DEFAULT_NUM_SEARCHES * 2` (Requirement 8.3)
     - _Requirements: 8.1, 8.2, 8.3_
 
-  - [ ] 3.5 Write property test for `_get_search_budget` unknown modes (Property 8)
+  - [x] 3.5 Write property test for `_get_search_budget` unknown modes (Property 8)
     - **Property 8: _get_search_budget returns DEFAULT_NUM_SEARCHES for unknown modes**
     - Strategy: `unknown_mode = st.text().filter(lambda s: s not in {"deep_dive", "deep_dive_gap_fill"})`
     - `@given(mode)` — assert `_get_search_budget(mode) == DEFAULT_NUM_SEARCHES`
     - `@settings(max_examples=100)`
     - **Validates: Requirements 8.4**
 
-  - [ ] 3.6 Write example tests for `_compute_brave_flags`
+  - [x] 3.6 Write example tests for `_compute_brave_flags`
     - Test `cost_effective_search=False` returns all `False` (Requirement 9.1)
     - Test `cost_effective_search=True`, `phase="initial"`, `search_mode="no_adaptive"` returns all `True` (Requirement 9.2)
     - Test `cost_effective_search=True`, `phase="deep_dive"` returns `ceil(n/2)` `True` then `False` (Requirement 9.3)
@@ -135,68 +135,68 @@ of production code is required.
     - Test `cost_effective_search=True`, `phase="initial"`, `search_mode` not `"no_adaptive"` returns all `True` (Requirement 9.5)
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
 
-  - [ ] 3.7 Write property test for `_compute_brave_flags` length invariant (Property 9)
+  - [x] 3.7 Write property test for `_compute_brave_flags` length invariant (Property 9)
     - **Property 9: _compute_brave_flags length equals input length**
     - Strategy: `search_list = st.lists(st.builds(WebSearchItem, query=st.text(min_size=1, max_size=50), reason=st.text(min_size=1, max_size=50)), min_size=0, max_size=20)`
     - `@given(searches, phase, cost_effective_search, search_mode)` — assert `len(_compute_brave_flags(searches, phase)) == len(searches)`
     - `@settings(max_examples=100)`
     - **Validates: Requirements 9.6**
 
-  - [ ] 3.8 Write example tests for `calculate_total_cost`
+  - [x] 3.8 Write example tests for `calculate_total_cost`
     - Test empty `session_usage` returns `0.0` (Requirement 10.1)
     - Test known agent with known token counts returns expected cost from `MODEL_COSTS` (Requirement 10.2)
     - Test tool calls add `TOOL_COSTS[tool_name] * count` (Requirement 10.3)
     - Test unknown agent name (not in `AGENT_MODEL_MAP`) is skipped without exception (Requirement 10.4)
     - _Requirements: 10.1, 10.2, 10.3, 10.4_
 
-  - [ ] 3.9 Write property test for `calculate_total_cost` non-negativity (Property 10)
+  - [x] 3.9 Write property test for `calculate_total_cost` non-negativity (Property 10)
     - **Property 10: calculate_total_cost is non-negative for all valid inputs**
     - Strategy: `non_neg_tokens = st.integers(min_value=0, max_value=10_000_000)`; build `SessionUsage` with arbitrary known-agent token counts
     - `@given(...)` — assert `calculate_total_cost() >= 0.0`
     - `@settings(max_examples=100)`
     - **Validates: Requirements 10.5**
 
-  - [ ] 3.10 Write example tests for `_format_cost_summary_from_snapshot`
+  - [x] 3.10 Write example tests for `_format_cost_summary_from_snapshot`
     - Test `None` returns string containing `"No cost data available"` (Requirement 11.1)
     - Test empty dict `{}` returns string containing `"No cost data available"` (Requirement 11.2)
     - Test valid snapshot dict includes all four values (Requirement 11.3)
     - Test `total_cost` is formatted to 4 decimal places (Requirement 11.4)
     - _Requirements: 11.1, 11.2, 11.3, 11.4_
 
-  - [ ] 3.11 Write example tests for `reset_session_state`
+  - [x] 3.11 Write example tests for `reset_session_state`
     - Populate all fields, call `reset_session_state()`, assert each field is reset:
       `report=None`, `search_results=[]`, `last_query=None`, fresh `SessionUsage()`,
       `current_session_id=None`, `cost=0.0`, `input_tokens=0`, `output_tokens=0`,
       `search_mode=SEARCH_MODE_DEFAULT`
     - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7_
 
-- [ ] 4. Checkpoint — run `tests/test_unit_research_manager.py`
+- [x] 4. Checkpoint — run `tests/test_unit_research_manager.py`
   - Ensure all tests pass, ask the user if questions arise.
   - `python -m pytest tests/test_unit_research_manager.py -v`
 
-- [ ] 5. Create `tests/test_unit_usage_tracker.py`
-  - [ ] 5.1 Add `autouse` fixture to reset `ContextVar` before and after each test
+- [x] 5. Create `tests/test_unit_usage_tracker.py`
+  - [x] 5.1 Add `autouse` fixture to reset `ContextVar` before and after each test
     - Call `set_session_usage(None)` in setup and teardown to prevent cross-test contamination
     - _Requirements: 13 (shared fixture)_
 
-  - [ ] 5.2 Write example tests for `set_session_usage` / `get_session_usage`
+  - [x] 5.2 Write example tests for `set_session_usage` / `get_session_usage`
     - Test round-trip: `set_session_usage(su)` then `get_session_usage()` returns same object (Requirement 13.1)
     - Test `set_session_usage(None)` makes `get_session_usage()` return `None` (Requirement 13.2)
     - _Requirements: 13.1, 13.2_
 
-  - [ ] 5.3 Write example tests for `record_agent_usage` and `record_tool_call`
+  - [x] 5.3 Write example tests for `record_agent_usage` and `record_tool_call`
     - Test `record_agent_usage` with bound session delegates to `session_usage.add_agent_usage` (Requirement 13.3)
     - Test `record_agent_usage` with no bound session returns without raising (Requirement 13.4)
     - Test `record_tool_call` with bound session delegates to `session_usage.add_tool_call` (Requirement 13.5)
     - Test `record_tool_call` with no bound session returns without raising (Requirement 13.6)
     - _Requirements: 13.3, 13.4, 13.5, 13.6_
 
-- [ ] 6. Checkpoint — run `tests/test_unit_usage_tracker.py`
+- [x] 6. Checkpoint — run `tests/test_unit_usage_tracker.py`
   - Ensure all tests pass, ask the user if questions arise.
   - `python -m pytest tests/test_unit_usage_tracker.py -v`
 
-- [ ] 7. Create `tests/test_unit_qa_agent.py`
-  - [ ] 7.1 Write example tests for `is_quality_request`
+- [x] 7. Create `tests/test_unit_qa_agent.py`
+  - [x] 7.1 Write example tests for `is_quality_request`
     - Test `"/quality"` returns `True` (Requirement 14.1)
     - Test `"/bias"` returns `True` (Requirement 14.2)
     - Test message containing `"run bias analysis"` returns `True` (Requirement 14.3)
@@ -205,14 +205,14 @@ of production code is required.
     - Test `"  /quality  "` (leading/trailing whitespace) returns `True` (Requirement 14.5)
     - _Requirements: 14.1, 14.2, 14.3, 14.4, 14.5_
 
-  - [ ] 7.2 Write property test for `is_quality_request` non-matching strings (Property 14)
+  - [x] 7.2 Write property test for `is_quality_request` non-matching strings (Property 14)
     - **Property 14: is_quality_request returns False for non-matching strings**
     - Strategy: `ALL_KNOWN = QUALITY_COMMANDS | QUALITY_TRIGGER_PHRASES`; `non_quality_str = st.text().filter(lambda s: not any(phrase in s.strip().lower() for phrase in ALL_KNOWN) and s.strip().lower() not in ALL_KNOWN)`
     - `@given(s)` — assert `is_quality_request(s) == False`
     - `@settings(max_examples=100)`
     - **Validates: Requirements 14.6**
 
-- [ ] 8. Checkpoint — run `tests/test_unit_qa_agent.py`
+- [x] 8. Checkpoint — run `tests/test_unit_qa_agent.py`
   - Ensure all tests pass, ask the user if questions arise.
   - `python -m pytest tests/test_unit_qa_agent.py -v`
 

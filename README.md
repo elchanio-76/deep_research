@@ -257,17 +257,21 @@ Typical costs:
 ## Testing
 
 ```bash
-python -m pytest                                        # all tests
-python -m pytest tests/test_unit_domain.py             # domain model unit + property tests
-python -m pytest tests/test_unit_sse_formatting.py     # SSE formatting unit tests
-python -m pytest tests/test_property_sse_roundtrip.py  # SSE round-trip property tests
-python -m pytest tests/test_property_dto_validation.py # DTO validation property tests
-python -m pytest tests/test_api_integration.py         # API integration tests
-python -m pytest tests/ -k "property" -v               # all property-based tests
+python -m pytest                                              # all tests
+python -m pytest tests/test_unit_domain.py                   # domain model unit + property tests
+python -m pytest tests/test_unit_research_manager.py         # ResearchManager pure method unit + property tests
+python -m pytest tests/test_unit_usage_tracker.py            # UsageTracker ContextVar unit tests
+python -m pytest tests/test_unit_sse_formatting.py           # SSE formatting unit tests
+python -m pytest tests/test_property_sse_roundtrip.py        # SSE round-trip property tests
+python -m pytest tests/test_property_dto_validation.py       # DTO validation property tests
+python -m pytest tests/test_api_integration.py               # API integration tests
+python -m pytest tests/ -k "property" -v                     # all property-based tests
 ```
 
 Tests cover:
 - **Domain models** (`src/models/domain.py`): `AgentUsage` token accumulation and tool-call counting, `SessionUsage` aggregate totals, `ExtractedClaim` field validator, `FinalReportData.from_writer_and_verification` — unit and Hypothesis property-based
+- **ResearchManager pure methods** (`src/core/research_manager.py`): `_normalize_json_payload`, `_get_search_budget`, `_compute_brave_flags`, `calculate_total_cost`, `_format_cost_summary_from_snapshot`, `reset_session_state` — unit and Hypothesis property-based (no LLM, database, or HTTP calls; pool is mocked)
+- **UsageTracker** (`src/core/usage_tracker.py`): `set_session_usage`, `get_session_usage`, `record_agent_usage`, `record_tool_call` — ContextVar round-trip, delegation to `SessionUsage`, and no-op behaviour when unbound
 - **SSE event formatting** (`src/streaming/sse.py`): unit tests for each `format_*()` function and Hypothesis round-trip property tests
 - **Request DTO validation** (`src/models/api.py`): Hypothesis property-based tests for `ResearchStartRequest` and `ChatRequest`
 - **Invalid request rejection**: Hypothesis-driven HTTP 422 verification for all POST endpoints
