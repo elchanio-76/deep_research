@@ -261,6 +261,10 @@ python -m pytest                                              # all tests
 python -m pytest tests/test_unit_domain.py                   # domain model unit + property tests
 python -m pytest tests/test_unit_research_manager.py         # ResearchManager pure method unit + property tests
 python -m pytest tests/test_unit_usage_tracker.py            # UsageTracker ContextVar unit tests
+python -m pytest tests/test_unit_qa_agent.py                 # is_quality_request classifier unit + property tests
+python -m pytest tests/test_unit_brave_search_tool.py        # BraveSearchTool formatting unit + property tests
+python -m pytest tests/test_unit_verification_tools.py       # parse_verification_result unit tests
+python -m pytest tests/test_unit_export_models.py            # ExportModels pure helper unit + property tests
 python -m pytest tests/test_unit_sse_formatting.py           # SSE formatting unit tests
 python -m pytest tests/test_property_sse_roundtrip.py        # SSE round-trip property tests
 python -m pytest tests/test_property_dto_validation.py       # DTO validation property tests
@@ -272,6 +276,10 @@ Tests cover:
 - **Domain models** (`src/models/domain.py`): `AgentUsage` token accumulation and tool-call counting, `SessionUsage` aggregate totals, `ExtractedClaim` field validator, `FinalReportData.from_writer_and_verification` — unit and Hypothesis property-based
 - **ResearchManager pure methods** (`src/core/research_manager.py`): `_normalize_json_payload`, `_get_search_budget`, `_compute_brave_flags`, `calculate_total_cost`, `_format_cost_summary_from_snapshot`, `reset_session_state` — unit and Hypothesis property-based (no LLM, database, or HTTP calls; pool is mocked)
 - **UsageTracker** (`src/core/usage_tracker.py`): `set_session_usage`, `get_session_usage`, `record_agent_usage`, `record_tool_call` — ContextVar round-trip, delegation to `SessionUsage`, and no-op behaviour when unbound
+- **QA agent** (`src/agents/qa_agent.py`): `is_quality_request` classifier — example tests for known commands/phrases and Hypothesis property test for non-matching strings
+- **Brave search tool** (`src/agents/brave_search_tool.py`): `_format_brave_results` and `_process_search_response` — empty list, truncation, missing fields, and Hypothesis field-inclusion property test
+- **Verification tools** (`src/agents/verification_tools.py`): `parse_verification_result` dispatch between single and group results
+- **Export models** (`src/export/models.py`): `MetadataHeader.derive_title` (header precedence, short/long prompt truncation) and `ExportResult.filename_for` (extension and session-id inclusion) — unit and Hypothesis property-based
 - **SSE event formatting** (`src/streaming/sse.py`): unit tests for each `format_*()` function and Hypothesis round-trip property tests
 - **Request DTO validation** (`src/models/api.py`): Hypothesis property-based tests for `ResearchStartRequest` and `ChatRequest`
 - **Invalid request rejection**: Hypothesis-driven HTTP 422 verification for all POST endpoints

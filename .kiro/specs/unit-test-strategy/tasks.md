@@ -251,45 +251,45 @@ of production code is required.
   - Ensure all tests pass, ask the user if questions arise.
   - `python -m pytest tests/test_unit_verification_tools.py -v`
 
-- [ ] 13. Create `tests/test_unit_export_models.py`
-  - [ ] 13.1 Write example tests for `MetadataHeader.derive_title`
+- [x] 13. Create `tests/test_unit_export_models.py`
+  - [x] 13.1 Write example tests for `MetadataHeader.derive_title`
     - Test non-empty header returns header unchanged (Requirement 17.1)
     - Test `None` header with prompt ≤ 120 chars returns prompt unchanged (Requirement 17.2)
     - Test `None` header with prompt > 120 chars returns first 120 chars + `"…"` (Requirement 17.3)
     - _Requirements: 17.1, 17.2, 17.3_
 
-  - [ ] 13.2 Write property test for `derive_title` with non-empty header (Property 11)
+  - [x] 13.2 Write property test for `derive_title` with non-empty header (Property 11)
     - **Property 11: derive_title returns header unchanged for any non-empty header**
     - Strategy: `non_empty_str = st.text(min_size=1, max_size=300)`
     - `@given(h, initial_prompt)` — assert `MetadataHeader.derive_title(h, initial_prompt) == h`
     - `@settings(max_examples=100)`
     - **Validates: Requirements 17.4**
 
-  - [ ] 13.3 Write property test for `derive_title` with short prompts (Property 12)
+  - [x] 13.3 Write property test for `derive_title` with short prompts (Property 12)
     - **Property 12: derive_title returns prompt unchanged for short prompts**
     - Strategy: `short_str = st.text(min_size=0, max_size=120)`
     - `@given(s)` — assert `MetadataHeader.derive_title(None, s) == s`
     - `@settings(max_examples=100)`
     - **Validates: Requirements 17.5**
 
-  - [ ] 13.4 Write example tests for `ExportResult.filename_for`
+  - [x] 13.4 Write example tests for `ExportResult.filename_for`
     - Test `ExportFormat.markdown` returns string ending in `".md"` (Requirement 17.6)
     - Test `ExportFormat.pdf` returns string ending in `".pdf"` (Requirement 17.7)
     - Test `ExportFormat.docx` returns string ending in `".docx"` (Requirement 17.8)
     - _Requirements: 17.6, 17.7, 17.8_
 
-  - [ ] 13.5 Write property test for `filename_for` session_id inclusion (Property 13)
+  - [x] 13.5 Write property test for `filename_for` session_id inclusion (Property 13)
     - **Property 13: filename_for always contains the session_id**
     - Strategy: `uuid_str = st.uuids().map(str)`, `export_fmt = st.sampled_from(list(ExportFormat))`
     - `@given(session_id, fmt)` — assert `session_id in ExportResult.filename_for(session_id, fmt)`
     - `@settings(max_examples=100)`
     - **Validates: Requirements 17.9**
 
-- [ ] 14. Checkpoint — run `tests/test_unit_export_models.py`
+- [x] 14. Checkpoint — run `tests/test_unit_export_models.py`
   - Ensure all tests pass, ask the user if questions arise.
   - `python -m pytest tests/test_unit_export_models.py -v`
 
-- [ ] 15. Final checkpoint — run the full new test suite
+- [x] 15. Final checkpoint — run the full new test suite
   - Run all 7 new test files together and confirm all pass:
     ```
     python -m pytest tests/test_unit_domain.py tests/test_unit_research_manager.py \
