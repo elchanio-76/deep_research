@@ -216,38 +216,38 @@ of production code is required.
   - Ensure all tests pass, ask the user if questions arise.
   - `python -m pytest tests/test_unit_qa_agent.py -v`
 
-- [ ] 9. Create `tests/test_unit_brave_search_tool.py`
-  - [ ] 9.1 Write example tests for `_format_brave_results`
+- [x] 9. Create `tests/test_unit_brave_search_tool.py`
+  - [x] 9.1 Write example tests for `_format_brave_results`
     - Test empty list returns `"No Brave results found."` (Requirement 15.1)
     - Test list with more than `MAX_BRAVE_RESULTS` items includes at most `MAX_BRAVE_RESULTS` results (Requirement 15.3)
     - Test result missing `"title"` key substitutes `"Untitled"` (Requirement 15.4)
     - _Requirements: 15.1, 15.3, 15.4_
 
-  - [ ] 9.2 Write property test for `_format_brave_results` field inclusion (Property 15)
+  - [x] 9.2 Write property test for `_format_brave_results` field inclusion (Property 15)
     - **Property 15: _format_brave_results includes all fields for each result**
     - Strategy: `brave_result = st.fixed_dictionaries({"title": st.text(min_size=1, max_size=100), "url": st.text(min_size=1, max_size=200), "description": st.text(min_size=0, max_size=300)})`; `result_list = st.lists(brave_result, min_size=1, max_size=MAX_BRAVE_RESULTS)`
     - `@given(results)` — assert each result's title, url, and description appear in the returned string
     - `@settings(max_examples=100)`
     - **Validates: Requirements 15.2**
 
-  - [ ] 9.3 Write example tests for `_process_search_response`
+  - [x] 9.3 Write example tests for `_process_search_response`
     - Test valid API response dict returns `payload["web"]["results"]` (Requirement 15.5)
     - Test dict missing `"web"` key returns `[]` (Requirement 15.6)
     - Test non-dict value returns `[]` (Requirement 15.7)
     - _Requirements: 15.5, 15.6, 15.7_
 
-- [ ] 10. Checkpoint — run `tests/test_unit_brave_search_tool.py`
+- [x] 10. Checkpoint — run `tests/test_unit_brave_search_tool.py`
   - Ensure all tests pass, ask the user if questions arise.
   - `python -m pytest tests/test_unit_brave_search_tool.py -v`
 
-- [ ] 11. Create `tests/test_unit_verification_tools.py`
-  - [ ] 11.1 Write example tests for `parse_verification_result`
+- [x] 11. Create `tests/test_unit_verification_tools.py`
+  - [x] 11.1 Write example tests for `parse_verification_result`
     - Test dict containing `"verified_claims"` returns a list of `SingleClaimCitation` objects (Requirement 16.1)
     - Test dict without `"verified_claims"` returns a single `SingleClaimCitation` object (Requirement 16.2)
     - Test group result with n claims returns list of length n (Requirement 16.3)
     - _Requirements: 16.1, 16.2, 16.3_
 
-- [ ] 12. Checkpoint — run `tests/test_unit_verification_tools.py`
+- [x] 12. Checkpoint — run `tests/test_unit_verification_tools.py`
   - Ensure all tests pass, ask the user if questions arise.
   - `python -m pytest tests/test_unit_verification_tools.py -v`
 
