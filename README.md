@@ -67,7 +67,7 @@ src/
 │   ├── domain.py        # Pydantic domain models
 │   └── api.py           # Request/Response DTOs + SSE event models
 ├── db/
-│   ├── pool.py          # asyncpg pool lifecycle + DDL
+│   ├── pool.py          # asyncpg pool lifecycle + schema drift checks
 │   ├── sessions.py      # Session CRUD
 │   └── messages.py      # Message insert/fetch
 ├── streaming/
@@ -106,13 +106,21 @@ src/
    EXPORT_BASE_URL=/exports                # optional: URL prefix for exported files (default: /exports)
    ```
 
-3. **Start the API server**:
+3. **Apply database migrations**:
+
+   ```bash
+   alembic upgrade head
+   ```
+
+   This creates the `sessions` and `messages` tables. Run this once on a fresh database and again after pulling new migrations. The application will refuse to start if migrations have not been applied.
+
+4. **Start the API server**:
 
    ```bash
    uvicorn src.api.main:app --reload
    ```
 
-4. **Start the Gradio UI** (in a separate terminal):
+5. **Start the Gradio UI** (in a separate terminal):
 
    ```bash
    python gradio_app.py
@@ -272,6 +280,8 @@ Typical costs:
 
 ```bash
 python -m pytest                                              # all tests
+python -m pytest tests/integration/                                  # all database integration tests (requires DATABASE_URL)
+python -m pytest tests/integration/test_migrations.py               # migration upgrade, downgrade, schema drift, Alembic CLI
 python -m pytest tests/test_unit_domain.py                   # domain model unit + property tests
 python -m pytest tests/test_unit_research_manager.py         # ResearchManager pure method unit + property tests
 python -m pytest tests/test_unit_usage_tracker.py            # UsageTracker ContextVar unit tests
@@ -300,6 +310,7 @@ Tests cover:
 - **Invalid request rejection**: Hypothesis-driven HTTP 422 verification for all POST endpoints
 - **Export pipeline** (`src/export/`): unit tests for router and service; Hypothesis property tests for renderers; unit tests for DOCX renderer internals (`_sanitize`, `_core_prop`, `_parse_paragraph`, `_add_formatted_run`, `_process_markdown`) and `render()` output (metadata properties, content presence, Q&A section, determinism, Unicode, control-character stripping); DOCX-specific property tests: valid ZIP/DOCX bytes (Property 10), renderer determinism (Property 11), core properties contain title and session_id (Property 12), Q&A paragraph count invariant (Property 13), title paragraph presence (Property 14)
 - **API endpoint integration**: research SSE stream, chat SSE stream, session CRUD, 404 handling
+- **Database integration** (`tests/integration/`): migration upgrade/downgrade, schema drift detection, Alembic CLI commands — requires a live PostgreSQL instance; tests are automatically skipped when `DATABASE_URL` is not set or the database is unreachable
 
 ## Future Enhancements
 

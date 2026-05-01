@@ -35,8 +35,8 @@ This plan migrates the project's schema management from inline DDL in `src/db/po
     - Ensure the empty `versions/` subdirectory exists (add `.gitkeep` if needed)
     - _Requirements: 1.1_
 
-- [ ] 3. Create the initial migration script
-  - [ ] 3.1 Create `alembic/versions/<rev>_initial_schema.py`
+- [x] 3. Create the initial migration script
+  - [x] 3.1 Create `alembic/versions/<rev>_initial_schema.py`
     - Implement `upgrade()` that creates the `sessions` table with all columns, types, defaults, and constraints matching current inline DDL
     - Implement `upgrade()` that creates the `messages` table with all columns, FK constraint (`ON DELETE CASCADE`), and defaults
     - Create `idx_sessions_last_activity` index on `sessions(last_activity_at DESC)`
@@ -44,38 +44,38 @@ This plan migrates the project's schema management from inline DDL in `src/db/po
     - Implement `downgrade()` that drops indexes first, then `messages` table, then `sessions` table (respecting FK order)
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 4.1_
 
-- [ ] 4. Checkpoint - Verify Alembic structure
+- [x] 4. Checkpoint - Verify Alembic structure
   - Ensure all tests pass, ask the user if questions arise.
   - Verify `alembic upgrade head` and `alembic downgrade -1` work against a local database
   - Verify `alembic current` and `alembic history` produce expected output
 
-- [ ] 5. Refactor `src/db/pool.py`
-  - [ ] 5.1 Remove all inline DDL from `init_db()`
+- [x] 5. Refactor `src/db/pool.py`
+  - [x] 5.1 Remove all inline DDL from `init_db()`
     - Remove all `CREATE TABLE`, `ALTER TABLE`, and `CREATE INDEX` statements
     - Keep pool creation via `get_pool()`
     - Preserve the `get_pool()`, `init_db()`, and `close_pool()` public interface without signature changes
     - _Requirements: 3.1, 3.2, 3.3, 3.4_
 
-  - [ ] 5.2 Add `_check_schema()` function
+  - [x] 5.2 Add `_check_schema()` function
     - Define `_EXPECTED_TABLES = ("sessions", "messages")` module-level tuple
     - Query `pg_tables` to verify expected application tables exist
     - Verify `alembic_version` table exists and contains at least one revision row
     - Raise `RuntimeError` with actionable message instructing to run `alembic upgrade head` on any failure
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
 
-  - [ ] 5.3 Wire `_check_schema()` into `init_db()`
+  - [x] 5.3 Wire `_check_schema()` into `init_db()`
     - Call `_check_schema(pool)` after pool creation but before returning the pool
     - Update docstring to reflect new behavior
     - _Requirements: 6.6_
 
-- [ ] 6. Checkpoint - Verify refactored pool.py
+- [x] 6. Checkpoint - Verify refactored pool.py
   - Ensure all tests pass, ask the user if questions arise.
   - Verify `src/db/sessions.py` and `src/db/messages.py` remain unchanged
   - Verify `src/api/main.py` lifespan still calls `init_db()` without changes
   - _Requirements: 3.4, 3.5_
 
-- [ ] 7. Create test database fixture
-  - [ ] 7.1 Create `tests/integration/conftest.py` with session-scoped fixture
+- [x] 7. Create test database fixture
+  - [x] 7.1 Create `tests/integration/conftest.py` with session-scoped fixture
     - Implement `_derive_test_db_url()` to append `_test` to the database name from `DATABASE_URL`
     - Implement `_maintenance_url()` to point at the `postgres` maintenance database
     - Create session-scoped `test_db` fixture that: creates temp database, runs `alembic upgrade head`, yields asyncpg pool, drops database on teardown
@@ -83,28 +83,28 @@ This plan migrates the project's schema management from inline DDL in `src/db/po
     - Mark integration tests to be skipped when no database is available
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
 
-- [ ] 8. Write integration tests
-  - [ ] 8.1 Write integration tests for migration upgrade
+- [x] 8. Write integration tests
+  - [x] 8.1 Write integration tests for migration upgrade
     - Verify `alembic upgrade head` creates `sessions` and `messages` tables with correct columns, types, and defaults
     - Verify both indexes are created (`idx_sessions_last_activity`, `idx_messages_session_id`)
     - _Requirements: 2.6, 5.1_
 
-  - [ ] 8.2 Write integration tests for migration downgrade and round-trip
+  - [x] 8.2 Write integration tests for migration downgrade and round-trip
     - Verify `alembic downgrade -1` removes all application tables and indexes
     - Verify downgrade-then-upgrade round trip produces identical schema to upgrade alone
     - _Requirements: 4.1, 4.2, 4.3_
 
-  - [ ] 8.3 Write integration tests for schema drift detection
+  - [x] 8.3 Write integration tests for schema drift detection
     - Verify `_check_schema()` passes against a fully migrated test database
     - Verify `_check_schema()` raises `RuntimeError` against an empty database (before migrations)
     - Verify error messages include instruction to run `alembic upgrade head`
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
 
-  - [ ] 8.4 Write integration tests for Alembic CLI commands
+  - [x] 8.4 Write integration tests for Alembic CLI commands
     - Verify `alembic current`, `alembic history`, and `alembic revision` work correctly
     - _Requirements: 5.3, 5.4, 5.5_
 
-- [ ] 9. Final checkpoint - Ensure all tests pass
+- [x] 9. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
   - Run `python -m pytest` to verify no regressions
   - Run `ruff check .` to verify no lint issues
