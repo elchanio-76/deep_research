@@ -12,7 +12,7 @@ An intelligent research assistant built with OpenAI's Agents SDK. It conducts co
 - **Cost-Effective Search**: Hybrid routing between OpenAI WebSearch and Brave Search API
 - **Session Management**: Persistent research sessions stored in PostgreSQL
 - **REST API**: FastAPI backend with SSE streaming for any HTTP client
-- **Report Export**: Deterministic Markdown and PDF export of completed research reports
+- **Report Export**: Deterministic Markdown, PDF, and DOCX export of completed research reports
 
 ## Architecture
 
@@ -79,7 +79,8 @@ src/
 │   ├── errors.py        # SessionNotFoundError, ReportNotReadyError, RenderError
 │   └── renderers/
 │       ├── markdown.py  # Pure Markdown renderer
-│       └── pdf.py       # Markdown → HTML → PDF via weasyprint
+│       ├── pdf.py       # Markdown → HTML → PDF via weasyprint
+│       └── docx.py      # Markdown → DOCX via python-docx
 └── config/
     └── settings.py      # All constants + env loading
 ```
@@ -207,6 +208,19 @@ Export a completed session report as a PDF document (generated via weasyprint �
 - `422` — Report not yet generated, or invalid parameters.
 - `500` — Database or rendering error.
 
+### `GET /api/export/{session_id}/docx`
+
+Export a completed session report as a DOCX document (generated via python-docx — no LLM involved). Includes metadata properties, formatted headings, bullet/numbered lists, inline code, bold/italic, links, code blocks, and an optional Q&A history section.
+
+**Query parameters:**
+- `delivery_mode` (optional, default `download`): `download` streams the file in the response body; `url` writes the file server-side and returns a JSON object.
+
+**Responses:**
+- `200` — DOCX file (`Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document`) or `{"file_path": "...", "url": "..."}` JSON.
+- `404` — Session not found.
+- `422` — Report not yet generated, or invalid parameters.
+- `500` — Database or rendering error.
+
 ## Usage Examples
 
 ### Python client (httpx + SSE)
@@ -265,6 +279,7 @@ python -m pytest tests/test_unit_qa_agent.py                 # is_quality_reques
 python -m pytest tests/test_unit_brave_search_tool.py        # BraveSearchTool formatting unit + property tests
 python -m pytest tests/test_unit_verification_tools.py       # parse_verification_result unit tests
 python -m pytest tests/test_unit_export_models.py            # ExportModels pure helper unit + property tests
+python -m pytest tests/test_unit_docx_renderer.py           # DOCX renderer unit tests (_parse_paragraph, _add_formatted_run, render)
 python -m pytest tests/test_unit_sse_formatting.py           # SSE formatting unit tests
 python -m pytest tests/test_property_sse_roundtrip.py        # SSE round-trip property tests
 python -m pytest tests/test_property_dto_validation.py       # DTO validation property tests
@@ -283,7 +298,7 @@ Tests cover:
 - **SSE event formatting** (`src/streaming/sse.py`): unit tests for each `format_*()` function and Hypothesis round-trip property tests
 - **Request DTO validation** (`src/models/api.py`): Hypothesis property-based tests for `ResearchStartRequest` and `ChatRequest`
 - **Invalid request rejection**: Hypothesis-driven HTTP 422 verification for all POST endpoints
-- **Export pipeline** (`src/export/`): unit tests for router and service; Hypothesis property tests for renderers
+- **Export pipeline** (`src/export/`): unit tests for router and service; Hypothesis property tests for renderers; unit tests for DOCX renderer internals (`_sanitize`, `_core_prop`, `_parse_paragraph`, `_add_formatted_run`, `_process_markdown`) and `render()` output (metadata properties, content presence, Q&A section, determinism, Unicode, control-character stripping); DOCX-specific property tests: valid ZIP/DOCX bytes (Property 10), renderer determinism (Property 11), core properties contain title and session_id (Property 12), Q&A paragraph count invariant (Property 13), title paragraph presence (Property 14)
 - **API endpoint integration**: research SSE stream, chat SSE stream, session CRUD, 404 handling
 
 ## Future Enhancements

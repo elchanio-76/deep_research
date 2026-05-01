@@ -27,6 +27,7 @@ from src.export.router import router
 FAKE_SESSION_ID = uuid.UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
 FAKE_MD_CONTENT = b"# Report\n\nHello world."
 FAKE_PDF_CONTENT = b"%PDF-1.4 fake pdf bytes"
+FAKE_DOCX_CONTENT = b"PK\x03\x04fake docx bytes"  # ZIP magic bytes (DOCX is a ZIP)
 
 
 def _make_app() -> FastAPI:
@@ -60,6 +61,15 @@ def _pdf_result() -> ExportResult:
         filename=f"report-{FAKE_SESSION_ID}.pdf",
         media_type="application/pdf",
         fmt=ExportFormat.pdf,
+    )
+
+
+def _docx_result() -> ExportResult:
+    return ExportResult(
+        content=FAKE_DOCX_CONTENT,
+        filename=f"report-{FAKE_SESSION_ID}.docx",
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        fmt=ExportFormat.docx,
     )
 
 
@@ -420,6 +430,151 @@ def test_no_stack_trace_in_500_response(client):
         new=AsyncMock(side_effect=RenderError("boom")),
     ):
         resp = client.get(f"/api/export/{FAKE_SESSION_ID}/pdf")
+    body = resp.text
+    assert "Traceback" not in body
+    assert 'File "' not in body
+
+
+# ---------------------------------------------------------------------------
+# DOCX endpoint — 404 / 422 / 500 error handling
+# ---------------------------------------------------------------------------
+
+
+def test_docx_404_when_session_not_found(client):
+    """HTTP 404 is returned when the session does not exist (DOCX endpoint)."""
+    with patch(
+        "src.export.router.export",
+        new=AsyncMock(
+            side_effect=SessionNotFoundError(f"Session {FAKE_SESSION_ID} not found")
+        ),
+    ):
+        resp = client.get(f"/api/export/{FAKE_SESSION_ID}/docx")
+    assert resp.status_code == 404
+    assert "not found" in resp.json()["detail"].lower()
+
+
+def test_docx_422_when_report_not_ready(client):
+    """HTTP 422 is returned when report_markdown is NULL (DOCX endpoint)."""
+    with patch(
+        "src.export.router.export",
+        new=AsyncMock(
+            side_effect=ReportNotReadyError(
+                f"Report not yet available for session {FAKE_SESSION_ID}"
+            )
+        ),
+    ):
+        resp = client.get(f"/api/export/{FAKE_SESSION_ID}/docx")
+    assert resp.status_code == 422
+    assert "not yet available" in resp.json()["detail"].lower()
+
+
+def test_docx_422_for_invalid_uuid(client):
+    """HTTP 422 is returned when the session_id path param is not a valid UUID (DOCX)."""
+    resp = client.get("/api/export/not-a-uuid/docx")
+    assert resp.status_code == 422
+
+
+def test_docx_422_for_invalid_delivery_mode(client):
+    """HTTP 422 is returned when delivery_mode is not 'download' or 'url' (DOCX)."""
+    resp = client.get(f"/api/export/{FAKE_SESSION_ID}/docx?delivery_mode=ftp")
+    assert resp.status_code == 422
+
+
+def test_docx_500_with_render_error_shape(client):
+    """HTTP 500 with {detail, reason} when the DOCX renderer raises a RenderError."""
+    with patch(
+        "src.export.router.export",
+        new=AsyncMock(side_effect=RenderError("python-docx exploded")),
+    ):
+        resp = client.get(f"/api/export/{FAKE_SESSION_ID}/docx")
+    assert resp.status_code == 500
+    body = resp.json()
+    assert body["detail"] == "DOCX rendering failed"
+    assert body["reason"] == "python-docx exploded"
+
+
+def test_docx_500_on_postgres_error(client):
+    """HTTP 500 with {detail: 'Database error: ...'} when asyncpg raises (DOCX)."""
+    with patch(
+        "src.export.router.export",
+        new=AsyncMock(side_effect=asyncpg.PostgresError()),
+    ):
+        resp = client.get(f"/api/export/{FAKE_SESSION_ID}/docx")
+    assert resp.status_code == 500
+    assert "database error" in resp.json()["detail"].lower()
+
+
+# ---------------------------------------------------------------------------
+# DOCX endpoint — download mode headers and body
+# ---------------------------------------------------------------------------
+
+
+def test_docx_download_headers(client):
+    """delivery_mode=download returns correct Content-Type and Content-Disposition for DOCX."""
+    with patch("src.export.router.export", new=AsyncMock(return_value=_docx_result())):
+        resp = client.get(f"/api/export/{FAKE_SESSION_ID}/docx")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    cd = resp.headers["content-disposition"]
+    assert "attachment" in cd
+    assert f"report-{FAKE_SESSION_ID}.docx" in cd
+
+
+def test_docx_download_body_content(client):
+    """download mode streams the exact bytes returned by the service (DOCX)."""
+    with patch("src.export.router.export", new=AsyncMock(return_value=_docx_result())):
+        resp = client.get(f"/api/export/{FAKE_SESSION_ID}/docx")
+    assert resp.content == FAKE_DOCX_CONTENT
+
+
+# ---------------------------------------------------------------------------
+# DOCX endpoint — url mode
+# ---------------------------------------------------------------------------
+
+
+def test_docx_url_mode_returns_json(client, tmp_path):
+    """delivery_mode=url returns JSON with file_path and url (DOCX)."""
+    fake_abs = str(tmp_path / f"report-{FAKE_SESSION_ID}.docx")
+    fake_url = f"/exports/report-{FAKE_SESSION_ID}.docx"
+
+    with patch(
+        "src.export.router.export_to_file",
+        new=AsyncMock(return_value=(_docx_result(), fake_abs, fake_url)),
+    ):
+        resp = client.get(f"/api/export/{FAKE_SESSION_ID}/docx?delivery_mode=url")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["file_path"] == fake_abs
+    assert body["url"] == fake_url
+
+
+# ---------------------------------------------------------------------------
+# DOCX endpoint — no stack traces in error responses
+# ---------------------------------------------------------------------------
+
+
+def test_no_stack_trace_in_docx_404_response(client):
+    """Error responses for the DOCX endpoint must not contain stack trace markers."""
+    with patch(
+        "src.export.router.export",
+        new=AsyncMock(side_effect=SessionNotFoundError("not found")),
+    ):
+        resp = client.get(f"/api/export/{FAKE_SESSION_ID}/docx")
+    body = resp.text
+    assert "Traceback" not in body
+    assert 'File "' not in body
+
+
+def test_no_stack_trace_in_docx_500_response(client):
+    """500 error responses for the DOCX endpoint must not contain stack trace markers."""
+    with patch(
+        "src.export.router.export",
+        new=AsyncMock(side_effect=RenderError("boom")),
+    ):
+        resp = client.get(f"/api/export/{FAKE_SESSION_ID}/docx")
     body = resp.text
     assert "Traceback" not in body
     assert 'File "' not in body

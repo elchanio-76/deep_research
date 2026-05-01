@@ -452,3 +452,233 @@ def test_property_9_no_stack_traces_in_error_responses(exc: Exception) -> None:
             f"Stack trace marker {marker!r} found in error response body "
             f"(exc={exc!r}, status={resp.status_code}): {body!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Property 10: DOCX output is valid DOCX bytes (ZIP magic bytes)
+# Feature: export-formats, Property 10: DOCX output is valid DOCX bytes
+# Validates: Requirements 3.x (DOCX format correctness)
+# ---------------------------------------------------------------------------
+
+from io import BytesIO as _BytesIO
+from docx import Document as _DocxDocument
+
+# python-docx / lxml requires XML-compatible text: no NULL bytes or C0/C1
+# control characters.  The renderer now sanitizes input, so we restrict
+# strategies only to exclude surrogates (which Python itself cannot encode).
+_xml_safe_text = st.text(
+    alphabet=st.characters(blacklist_categories=("Cs",)),
+    min_size=0,
+    max_size=500,
+)
+
+# python-docx core_properties.title has a hard 255-char limit; the renderer
+# truncates after sanitization, so titles up to 500 chars are fine as input.
+_xml_safe_title = st.text(
+    alphabet=st.characters(blacklist_categories=("Cs",)),
+    min_size=1,
+    max_size=500,
+)
+
+_xml_safe_qa_pair = st.builds(
+    QAPair,
+    question=_xml_safe_text.filter(lambda s: len(s) >= 1),
+    answer=_xml_safe_text.filter(lambda s: len(s) >= 1),
+)
+
+_xml_safe_metadata = st.builds(
+    MetadataHeader,
+    title=_xml_safe_title,
+    session_id=st.uuids().map(str),
+    exported_at=st.just("2025-01-01T00:00:00+00:00"),
+    format=st.sampled_from(["markdown", "pdf", "docx"]),
+)
+
+_xml_safe_document_parts = st.builds(
+    DocumentParts,
+    metadata=_xml_safe_metadata,
+    report_body=_xml_safe_text,
+    qa_pairs=st.lists(_xml_safe_qa_pair, max_size=5),
+)
+
+
+@given(parts=_xml_safe_document_parts)
+@settings(max_examples=50, deadline=None)
+def test_property_10_docx_output_is_valid_docx_bytes(parts: DocumentParts) -> None:
+    """docx_renderer.render(parts) returns non-empty bytes that start with the
+    ZIP magic bytes (b'PK') and can be parsed as a valid DOCX document.
+
+    Validates: DOCX format correctness requirement.
+    Note: strategies are restricted to XML-safe characters because python-docx
+    uses lxml internally and rejects C0/C1 control characters.
+    """
+    result = docx_renderer.render(parts)
+
+    assert isinstance(result, bytes), "render() must return bytes"
+    assert len(result) > 0, "render() returned empty bytes"
+    assert (
+        result[:2] == b"PK"
+    ), f"DOCX output does not start with ZIP magic bytes b'PK'; got {result[:4]!r}"
+    # Must be parseable as a real DOCX document
+    doc = _DocxDocument(_BytesIO(result))
+    assert doc is not None
+
+
+# ---------------------------------------------------------------------------
+# Property 11: DOCX renderer structural consistency
+# Feature: export-formats, Property 11: DOCX renderer structural consistency
+# Validates: Requirements 7.1 (consistent rendering)
+# Note: python-docx embeds ZIP timestamps that vary between calls, so raw
+# byte equality is not guaranteed.  We verify structural consistency instead:
+# same paragraph count and same concatenated text on every call.
+# ---------------------------------------------------------------------------
+
+
+@given(parts=_xml_safe_document_parts)
+@settings(max_examples=50, deadline=None)
+def test_property_11_docx_renderer_structural_consistency(parts: DocumentParts) -> None:
+    """Calling docx_renderer.render(parts) twice produces documents with
+    identical paragraph count and identical concatenated paragraph text.
+
+    Note: raw byte equality is not asserted because python-docx embeds
+    ZIP modification timestamps that differ between calls.
+
+    Validates: Requirements 7.1 (consistent rendering)
+    """
+
+    def _extract(raw: bytes) -> tuple[int, str]:
+        doc = _DocxDocument(_BytesIO(raw))
+        texts = [p.text for p in doc.paragraphs]
+        return len(texts), "\n".join(texts)
+
+    first_count, first_text = _extract(docx_renderer.render(parts))
+    second_count, second_text = _extract(docx_renderer.render(parts))
+
+    assert (
+        first_count == second_count
+    ), f"Paragraph count differs between calls: {first_count} vs {second_count}"
+    assert (
+        first_text == second_text
+    ), "Concatenated paragraph text differs between calls."
+
+
+# ---------------------------------------------------------------------------
+# Property 12: DOCX core properties contain title and session_id
+# Feature: export-formats, Property 12: DOCX metadata completeness
+# Validates: Requirements 3.1, 3.2 (metadata in output)
+# ---------------------------------------------------------------------------
+
+
+@given(parts=_xml_safe_document_parts)
+@settings(max_examples=50, deadline=None)
+def test_property_12_docx_metadata_completeness(parts: DocumentParts) -> None:
+    """The rendered DOCX document's core properties contain the (possibly
+    truncated/sanitized) title and a subject that includes the session_id.
+
+    The renderer strips XML-illegal control characters and truncates to 255
+    chars before writing core properties, so we verify against the processed
+    value rather than the raw input.
+
+    Validates: Requirements 3.1, 3.2
+    """
+    import re as _re
+
+    _illegal = _re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+    expected_title = _illegal.sub("", parts.metadata.title)[:255]
+
+    result = docx_renderer.render(parts)
+    doc = _DocxDocument(_BytesIO(result))
+
+    assert doc.core_properties.title == expected_title, (
+        f"core_properties.title mismatch: expected {expected_title!r}, "
+        f"got {doc.core_properties.title!r}"
+    )
+    assert parts.metadata.session_id in doc.core_properties.subject, (
+        f"session_id {parts.metadata.session_id!r} not found in "
+        f"core_properties.subject {doc.core_properties.subject!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Property 13: DOCX Q&A pair count invariant
+# Feature: export-formats, Property 13: DOCX Q&A block count invariant
+# Validates: Requirements 1.5, 7.3 (Q&A completeness)
+# ---------------------------------------------------------------------------
+
+
+@given(
+    metadata=_xml_safe_metadata,
+    report_body=_xml_safe_text,
+    qa_pairs=st.lists(_xml_safe_qa_pair, max_size=10),
+)
+@settings(max_examples=50, deadline=None)
+def test_property_13_docx_qa_pair_count_invariant(
+    metadata: MetadataHeader,
+    report_body: str,
+    qa_pairs: list[QAPair],
+) -> None:
+    """The rendered DOCX document contains exactly as many 'Q: ' prefixed
+    paragraphs as there are QAPairs in the input.
+
+    Validates: Requirements 1.5, 7.3
+    """
+    parts = DocumentParts(metadata=metadata, report_body=report_body, qa_pairs=qa_pairs)
+    result = docx_renderer.render(parts)
+    doc = _DocxDocument(_BytesIO(result))
+
+    q_paragraphs = [p for p in doc.paragraphs if any(r.text == "Q: " for r in p.runs)]
+
+    assert len(q_paragraphs) == len(qa_pairs), (
+        f"Expected {len(qa_pairs)} 'Q: ' paragraphs but found {len(q_paragraphs)}. "
+        f"qa_pairs={qa_pairs!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Property 14: DOCX title paragraph present for any non-empty title
+# Feature: export-formats, Property 14: DOCX title paragraph presence
+# Validates: Requirements 3.2 (title in document body)
+# ---------------------------------------------------------------------------
+
+
+@given(
+    title=_xml_safe_title,
+    report_body=_xml_safe_text,
+)
+@settings(max_examples=50, deadline=None)
+def test_property_14_docx_title_paragraph_present(title: str, report_body: str) -> None:
+    """The rendered DOCX document contains the sanitized title text in at least
+    one paragraph.  Control characters are stripped before writing, so the
+    assertion is against the sanitized form.
+
+    Validates: Requirements 3.2
+    """
+    import re as _re
+
+    _illegal = _re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+    sanitized_title = _illegal.sub("", title)
+
+    parts = DocumentParts(
+        metadata=MetadataHeader(
+            title=title,
+            session_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            exported_at="2025-01-01T00:00:00+00:00",
+            format="docx",
+        ),
+        report_body=report_body,
+        qa_pairs=[],
+    )
+    result = docx_renderer.render(parts)
+    doc = _DocxDocument(_BytesIO(result))
+
+    all_text = "\n".join(p.text for p in doc.paragraphs)
+
+    # python-docx normalises \r to \n and strips whitespace from paragraph text
+    # on read-back.  Apply the same normalisation before asserting.
+    normalised_title = sanitized_title.replace("\r", "\n").strip()
+    if not normalised_title:
+        return  # nothing meaningful to assert for whitespace-only titles
+    assert normalised_title in all_text, (
+        f"Normalised title {normalised_title!r} not found in document paragraphs. "
+        f"Document text: {all_text[:200]!r}"
+    )
