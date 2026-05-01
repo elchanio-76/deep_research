@@ -4,9 +4,9 @@ inclusion: always
 
 ## Git Worktree & Branch Setup
 
-All work related to the test suite feature MUST take place in the dedicated  branch — never on `main`.
+All work related to the DB migrations feature MUST take place in the dedicated  branch — never on `main`.
 
-- Branch: `test-suite-enhancement`
+- Branch: `db-migrations`
 
 Before making any changes, verify the active branch:
 
@@ -14,10 +14,10 @@ Before making any changes, verify the active branch:
 git branch --show-current
 ```
 
-If the output is not `test-suite-enhancement`, switch to the correct branch before proceeding:
+If the output is not `db-migrations`, switch to the correct branch before proceeding:
 
 ```bash
-git switch test-suite-enhancement
+git switch db-migrations
 ```
 
 Do NOT commit or apply changes to the `main` branch or any other worktree unless explicitly instructed.
