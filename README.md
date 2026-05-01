@@ -257,16 +257,22 @@ Typical costs:
 ## Testing
 
 ```bash
-python -m pytest                          # all tests
-python -m pytest tests/test_sse.py        # SSE unit + property tests
-python -m pytest tests/test_api.py        # API integration tests
+python -m pytest                                        # all tests
+python -m pytest tests/test_unit_domain.py             # domain model unit + property tests
+python -m pytest tests/test_unit_sse_formatting.py     # SSE formatting unit tests
+python -m pytest tests/test_property_sse_roundtrip.py  # SSE round-trip property tests
+python -m pytest tests/test_property_dto_validation.py # DTO validation property tests
+python -m pytest tests/test_api_integration.py         # API integration tests
+python -m pytest tests/ -k "property" -v               # all property-based tests
 ```
 
 Tests cover:
-- SSE event formatting (unit + Hypothesis property-based)
-- Request DTO validation (Hypothesis property-based)
-- Invalid request rejection → HTTP 422 (Hypothesis property-based)
-- API endpoint integration (research, chat, session CRUD)
+- **Domain models** (`src/models/domain.py`): `AgentUsage` token accumulation and tool-call counting, `SessionUsage` aggregate totals, `ExtractedClaim` field validator, `FinalReportData.from_writer_and_verification` — unit and Hypothesis property-based
+- **SSE event formatting** (`src/streaming/sse.py`): unit tests for each `format_*()` function and Hypothesis round-trip property tests
+- **Request DTO validation** (`src/models/api.py`): Hypothesis property-based tests for `ResearchStartRequest` and `ChatRequest`
+- **Invalid request rejection**: Hypothesis-driven HTTP 422 verification for all POST endpoints
+- **Export pipeline** (`src/export/`): unit tests for router and service; Hypothesis property tests for renderers
+- **API endpoint integration**: research SSE stream, chat SSE stream, session CRUD, 404 handling
 
 ## Future Enhancements
 

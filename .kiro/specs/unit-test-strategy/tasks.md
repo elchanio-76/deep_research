@@ -14,8 +14,8 @@ of production code is required.
 
 ## Tasks
 
-- [ ] 1. Create `tests/test_unit_domain.py`
-  - [ ] 1.1 Write example tests for `AgentUsage.add_tokens` and `AgentUsage.add_tool_call`
+- [x] 1. Create `tests/test_unit_domain.py`
+  - [x] 1.1 Write example tests for `AgentUsage.add_tokens` and `AgentUsage.add_tool_call`
     - Test initial state (`input_tokens == 0`, `output_tokens == 0`)
     - Test single call reflects exact values passed (Requirement 1.2)
     - Test multi-call accumulation (Requirement 1.3)
@@ -26,62 +26,62 @@ of production code is required.
     - Test two distinct tool names maintain independent counts (Requirement 2.5)
     - _Requirements: 1.1, 1.2, 1.3, 1.5, 2.1, 2.2, 2.3, 2.5_
 
-  - [ ] 1.2 Write property test for `AgentUsage` token accumulation (Property 1)
+  - [x] 1.2 Write property test for `AgentUsage` token accumulation (Property 1)
     - **Property 1: AgentUsage token accumulation is additive**
     - Strategy: `token_count = st.integers(min_value=0, max_value=10_000_000)`
     - `@given(a, b, c, d)` — call `add_tokens(a, b)` then `add_tokens(c, d)`, assert `input == a+c`, `output == b+d`
     - `@settings(max_examples=100)`
     - **Validates: Requirements 1.4**
 
-  - [ ] 1.3 Write property test for `AgentUsage` tool-call counting (Property 2)
+  - [x] 1.3 Write property test for `AgentUsage` tool-call counting (Property 2)
     - **Property 2: AgentUsage tool-call counting is exact**
     - Strategy: `name_str = st.text(min_size=1, max_size=50)`, `positive_int = st.integers(min_value=1, max_value=1000)`
     - `@given(t, n)` — call `add_tool_call(t)` n times, assert `tool_calls[t] == n`
     - `@settings(max_examples=100)`
     - **Validates: Requirements 2.4**
 
-  - [ ] 1.4 Write example tests for `SessionUsage.add_agent_usage` and `add_tool_call`
+  - [x] 1.4 Write example tests for `SessionUsage.add_agent_usage` and `add_tool_call`
     - Test new agent creates `AgentUsage` entry (Requirement 3.1)
     - Test existing agent accumulates into existing entry (Requirement 3.2)
     - Test `add_tool_call` increments `total_tool_calls[tool_name]` (Requirement 4.1)
     - Test `add_tool_call` also increments `agents[agent_name].tool_calls[tool_name]` (Requirement 4.2)
     - _Requirements: 3.1, 3.2, 4.1, 4.2_
 
-  - [ ] 1.5 Write property test for `SessionUsage` aggregate totals (Property 3)
+  - [x] 1.5 Write property test for `SessionUsage` aggregate totals (Property 3)
     - **Property 3: SessionUsage totals equal sum of per-agent values**
     - Strategy: `st.lists(st.tuples(name_str, token_count, token_count), min_size=0, max_size=20)`
     - `@given(triples)` — apply all via `add_agent_usage`, assert `total_input_tokens == sum(inputs)`, `total_output_tokens == sum(outputs)`
     - `@settings(max_examples=100)`
     - **Validates: Requirements 3.3, 3.4, 3.5**
 
-  - [ ] 1.6 Write property test for `SessionUsage` tool-call aggregation (Property 4)
+  - [x] 1.6 Write property test for `SessionUsage` tool-call aggregation (Property 4)
     - **Property 4: SessionUsage total_tool_calls equals sum across agents**
     - Strategy: `st.lists(st.tuples(name_str, name_str), min_size=0, max_size=30)`
     - `@given(pairs)` — apply all via `add_tool_call`, assert `total_tool_calls[tool_name]` equals sum across per-agent entries
     - `@settings(max_examples=100)`
     - **Validates: Requirements 4.3**
 
-  - [ ] 1.7 Write example tests for `ExtractedClaim` validator
+  - [x] 1.7 Write example tests for `ExtractedClaim` validator
     - Test `highly_controversial` + `importance="low"` coerces to `"medium"` (Requirement 5.1)
     - Test `highly_controversial` + `importance="high"` preserves `"high"` (Requirement 5.2)
     - Test non-`highly_controversial` controversy preserves any importance value (Requirement 5.3)
     - _Requirements: 5.1, 5.2, 5.3_
 
-  - [ ] 1.8 Write property test for `ExtractedClaim` validator (Property 5)
+  - [x] 1.8 Write property test for `ExtractedClaim` validator (Property 5)
     - **Property 5: ExtractedClaim validator never raises for valid enum combinations**
     - Strategies: `importance_level = st.sampled_from(["critical", "high", "medium", "low"])`, `controversy_level = st.sampled_from([...])`
     - `@given(importance, controversy)` — construct `ExtractedClaim` with all required fields, assert no `ValidationError`
     - `@settings(max_examples=100)`
     - **Validates: Requirements 5.4**
 
-  - [ ] 1.9 Write example tests for `FinalReportData.from_writer_and_verification`
+  - [x] 1.9 Write example tests for `FinalReportData.from_writer_and_verification`
     - Test `short_summary`, `markdown_report`, `follow_up_questions` copied unchanged (Requirement 6.1)
     - Test `total_claims_checked` equals number of claims (Requirement 6.2)
     - Test `dubious_claims_count` equals count of claims below `FACT_CHECK_CONFIDENCE_THRESHOLD` (Requirement 6.3)
     - Test `was_edited=False` is preserved (Requirement 6.4)
     - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-  - [ ] 1.10 Write property test for `FinalReportData.dubious_claims_count` (Property 6)
+  - [x] 1.10 Write property test for `FinalReportData.dubious_claims_count` (Property 6)
     - **Property 6: FinalReportData dubious_claims_count matches threshold filter**
     - Strategy: `claim_citation = st.builds(SingleClaimCitation, confidence_score=st.integers(min_value=0, max_value=100), ...)`
     - `@given(st.lists(claim_citation, min_size=0, max_size=20))` — assert `dubious_claims_count == len([c for c in claims if c.confidence_score < FACT_CHECK_CONFIDENCE_THRESHOLD])`
