@@ -286,3 +286,117 @@ def test_build_qa_pairs_assistant_only_messages():
     assert len(pairs) == 1
     assert pairs[0].question == ""
     assert pairs[0].answer == "Unprompted answer"
+
+
+# ---------------------------------------------------------------------------
+# Successful DOCX export
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_export_docx_returns_correct_result():
+    """export() with ExportFormat.docx returns a valid ExportResult."""
+    pool = _make_pool()
+    fake_docx = b"PK\x03\x04fake docx bytes"
+    with (
+        patch(
+            "src.export.service.db_sessions.load_session",
+            new=AsyncMock(return_value=VALID_SESSION),
+        ),
+        patch(
+            "src.export.service.db_messages.fetch_chat_messages",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "src.export.service.docx_renderer.render",
+            return_value=fake_docx,
+        ),
+    ):
+        result = await export(FAKE_SESSION_ID, ExportFormat.docx, pool)
+
+    assert isinstance(result, ExportResult)
+    assert result.fmt == ExportFormat.docx
+    assert result.filename == f"report-{FAKE_SESSION_ID}.docx"
+    assert result.media_type == (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    assert result.content == fake_docx
+
+
+@pytest.mark.asyncio
+async def test_export_docx_wraps_renderer_exception_in_render_error():
+    """A non-RenderError raised by the DOCX renderer is wrapped in RenderError."""
+    pool = _make_pool()
+    with (
+        patch(
+            "src.export.service.db_sessions.load_session",
+            new=AsyncMock(return_value=VALID_SESSION),
+        ),
+        patch(
+            "src.export.service.db_messages.fetch_chat_messages",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "src.export.service.docx_renderer.render",
+            side_effect=RuntimeError("docx boom"),
+        ),
+    ):
+        with pytest.raises(RenderError):
+            await export(FAKE_SESSION_ID, ExportFormat.docx, pool)
+
+
+@pytest.mark.asyncio
+async def test_export_docx_re_raises_render_error_unchanged():
+    """A RenderError raised by the DOCX renderer propagates as-is."""
+    pool = _make_pool()
+    original = RenderError("python-docx exploded")
+    with (
+        patch(
+            "src.export.service.db_sessions.load_session",
+            new=AsyncMock(return_value=VALID_SESSION),
+        ),
+        patch(
+            "src.export.service.db_messages.fetch_chat_messages",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "src.export.service.docx_renderer.render",
+            side_effect=original,
+        ),
+    ):
+        with pytest.raises(RenderError) as exc_info:
+            await export(FAKE_SESSION_ID, ExportFormat.docx, pool)
+        assert exc_info.value is original
+
+
+@pytest.mark.asyncio
+async def test_export_docx_passes_qa_pairs_to_renderer():
+    """The DOCX renderer receives DocumentParts with the correct Q&A pairs."""
+    pool = _make_pool()
+    captured: list = []
+
+    def _capture_render(parts):
+        captured.append(parts)
+        return b"PK\x03\x04fake"
+
+    with (
+        patch(
+            "src.export.service.db_sessions.load_session",
+            new=AsyncMock(return_value=VALID_SESSION),
+        ),
+        patch(
+            "src.export.service.db_messages.fetch_chat_messages",
+            new=AsyncMock(return_value=CHAT_MESSAGES),
+        ),
+        patch(
+            "src.export.service.docx_renderer.render",
+            side_effect=_capture_render,
+        ),
+    ):
+        await export(FAKE_SESSION_ID, ExportFormat.docx, pool)
+
+    assert len(captured) == 1
+    parts = captured[0]
+    assert len(parts.qa_pairs) == 1
+    assert parts.qa_pairs[0].question == "What about Lyon?"
+    assert parts.qa_pairs[0].answer == "Lyon is the second-largest city."

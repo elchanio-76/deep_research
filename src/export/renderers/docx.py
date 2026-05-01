@@ -15,6 +15,32 @@ from docx.shared import Inches, Pt
 
 from src.export.models import DocumentParts
 
+# python-docx uses lxml internally, which rejects XML control characters
+# (C0: U+0000–U+001F except \t \n \r, and C1: U+007F–U+009F).
+# This regex matches all such characters so they can be stripped from input.
+_XML_ILLEGAL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+
+# python-docx core_properties fields (title, subject, …) have a 255-char limit.
+_CORE_PROP_MAX = 255
+
+
+def _sanitize(text: str) -> str:
+    """Strip XML-illegal control characters from *text*.
+
+    Removes C0/C1 control characters that lxml rejects, while preserving
+    normal whitespace (\\t, \\n, \\r).  The NULL byte (\\x00) is also removed
+    here because it is used internally as a placeholder delimiter by
+    ``_process_markdown``; stripping it from user input before that function
+    runs avoids collisions with the placeholder sentinel.
+    """
+    return _XML_ILLEGAL_RE.sub("", text)
+
+
+def _core_prop(text: str) -> str:
+    """Sanitize *text* and truncate to the 255-char core-property limit."""
+    sanitized = _sanitize(text)
+    return sanitized[:_CORE_PROP_MAX]
+
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$")
 _BOLD_RE = re.compile(r"\*\*(.+?)\*\*|__(.+?)__")
@@ -28,6 +54,7 @@ _NUMBERED_RE = re.compile(r"^\d+\.\s+(.+)$")
 
 def _add_formatted_run(paragraph, text: str) -> None:
     """Add text to a paragraph with inline formatting (bold, italic, code)."""
+    text = _sanitize(text)
     pos = 0
     while pos < len(text):
         bold_match = _BOLD_RE.search(text, pos)
@@ -90,7 +117,9 @@ def _parse_paragraph(text: str) -> tuple[str, str, str]:
     return ("text", text, "")
 
 
-def _add_paragraph_with_style(doc: Document, ptype: str, content: str, level: str) -> None:
+def _add_paragraph_with_style(
+    doc: Document, ptype: str, content: str, level: str
+) -> None:
     """Add a paragraph to the document with appropriate style."""
     if ptype == "heading":
         heading_level = int(level)
@@ -133,11 +162,11 @@ def _process_markdown(doc: Document, md_text: str) -> None:
             code_para = doc.add_paragraph()
             code_para.paragraph_format.left_indent = Inches(0.5)
             if lang:
-                run = code_para.add_run(f"[{lang}]\n")
+                run = code_para.add_run(f"[{_sanitize(lang)}]\n")
                 run.font.name = "Courier New"
                 run.font.size = Pt(9)
                 run.italic = True
-            code_run = code_para.add_run(code.rstrip("\n"))
+            code_run = code_para.add_run(_sanitize(code).rstrip("\n"))
             code_run.font.name = "Courier New"
             code_run.font.size = Pt(9)
             continue
@@ -164,18 +193,18 @@ def render(parts: DocumentParts) -> bytes:
     doc = Document()
 
     core_props = doc.core_properties
-    core_props.title = parts.metadata.title
+    core_props.title = _core_prop(parts.metadata.title)
     core_props.author = "Deep Research"
-    core_props.subject = f"Session {parts.metadata.session_id}"
+    core_props.subject = _core_prop(f"Session {parts.metadata.session_id}")
 
-    title = doc.add_heading(parts.metadata.title, level=0)
+    title = doc.add_heading(_sanitize(parts.metadata.title), level=0)
     title.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
     meta_para = doc.add_paragraph()
     meta_para.add_run("Session ID: ").bold = True
-    meta_para.add_run(parts.metadata.session_id)
+    meta_para.add_run(_sanitize(parts.metadata.session_id))
     meta_para.add_run("\nExported: ").bold = True
-    meta_para.add_run(parts.metadata.exported_at)
+    meta_para.add_run(_sanitize(parts.metadata.exported_at))
     meta_para.paragraph_format.space_after = Pt(12)
 
     _process_markdown(doc, parts.report_body)

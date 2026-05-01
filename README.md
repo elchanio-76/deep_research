@@ -12,7 +12,7 @@ An intelligent research assistant built with OpenAI's Agents SDK. It conducts co
 - **Cost-Effective Search**: Hybrid routing between OpenAI WebSearch and Brave Search API
 - **Session Management**: Persistent research sessions stored in PostgreSQL
 - **REST API**: FastAPI backend with SSE streaming for any HTTP client
-- **Report Export**: Deterministic Markdown and PDF export of completed research reports
+- **Report Export**: Deterministic Markdown, PDF, and DOCX export of completed research reports
 
 ## Architecture
 
@@ -79,7 +79,8 @@ src/
 │   ├── errors.py        # SessionNotFoundError, ReportNotReadyError, RenderError
 │   └── renderers/
 │       ├── markdown.py  # Pure Markdown renderer
-│       └── pdf.py       # Markdown → HTML → PDF via weasyprint
+│       ├── pdf.py       # Markdown → HTML → PDF via weasyprint
+│       └── docx.py      # Markdown → DOCX via python-docx
 └── config/
     └── settings.py      # All constants + env loading
 ```
@@ -207,6 +208,19 @@ Export a completed session report as a PDF document (generated via weasyprint �
 - `422` — Report not yet generated, or invalid parameters.
 - `500` — Database or rendering error.
 
+### `GET /api/export/{session_id}/docx`
+
+Export a completed session report as a DOCX document (generated via python-docx — no LLM involved). Includes metadata properties, formatted headings, bullet/numbered lists, inline code, bold/italic, links, code blocks, and an optional Q&A history section.
+
+**Query parameters:**
+- `delivery_mode` (optional, default `download`): `download` streams the file in the response body; `url` writes the file server-side and returns a JSON object.
+
+**Responses:**
+- `200` — DOCX file (`Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document`) or `{"file_path": "...", "url": "..."}` JSON.
+- `404` — Session not found.
+- `422` — Report not yet generated, or invalid parameters.
+- `500` — Database or rendering error.
+
 ## Usage Examples
 
 ### Python client (httpx + SSE)
@@ -257,16 +271,35 @@ Typical costs:
 ## Testing
 
 ```bash
-python -m pytest                          # all tests
-python -m pytest tests/test_sse.py        # SSE unit + property tests
-python -m pytest tests/test_api.py        # API integration tests
+python -m pytest                                              # all tests
+python -m pytest tests/test_unit_domain.py                   # domain model unit + property tests
+python -m pytest tests/test_unit_research_manager.py         # ResearchManager pure method unit + property tests
+python -m pytest tests/test_unit_usage_tracker.py            # UsageTracker ContextVar unit tests
+python -m pytest tests/test_unit_qa_agent.py                 # is_quality_request classifier unit + property tests
+python -m pytest tests/test_unit_brave_search_tool.py        # BraveSearchTool formatting unit + property tests
+python -m pytest tests/test_unit_verification_tools.py       # parse_verification_result unit tests
+python -m pytest tests/test_unit_export_models.py            # ExportModels pure helper unit + property tests
+python -m pytest tests/test_unit_docx_renderer.py           # DOCX renderer unit tests (_parse_paragraph, _add_formatted_run, render)
+python -m pytest tests/test_unit_sse_formatting.py           # SSE formatting unit tests
+python -m pytest tests/test_property_sse_roundtrip.py        # SSE round-trip property tests
+python -m pytest tests/test_property_dto_validation.py       # DTO validation property tests
+python -m pytest tests/test_api_integration.py               # API integration tests
+python -m pytest tests/ -k "property" -v                     # all property-based tests
 ```
 
 Tests cover:
-- SSE event formatting (unit + Hypothesis property-based)
-- Request DTO validation (Hypothesis property-based)
-- Invalid request rejection → HTTP 422 (Hypothesis property-based)
-- API endpoint integration (research, chat, session CRUD)
+- **Domain models** (`src/models/domain.py`): `AgentUsage` token accumulation and tool-call counting, `SessionUsage` aggregate totals, `ExtractedClaim` field validator, `FinalReportData.from_writer_and_verification` — unit and Hypothesis property-based
+- **ResearchManager pure methods** (`src/core/research_manager.py`): `_normalize_json_payload`, `_get_search_budget`, `_compute_brave_flags`, `calculate_total_cost`, `_format_cost_summary_from_snapshot`, `reset_session_state` — unit and Hypothesis property-based (no LLM, database, or HTTP calls; pool is mocked)
+- **UsageTracker** (`src/core/usage_tracker.py`): `set_session_usage`, `get_session_usage`, `record_agent_usage`, `record_tool_call` — ContextVar round-trip, delegation to `SessionUsage`, and no-op behaviour when unbound
+- **QA agent** (`src/agents/qa_agent.py`): `is_quality_request` classifier — example tests for known commands/phrases and Hypothesis property test for non-matching strings
+- **Brave search tool** (`src/agents/brave_search_tool.py`): `_format_brave_results` and `_process_search_response` — empty list, truncation, missing fields, and Hypothesis field-inclusion property test
+- **Verification tools** (`src/agents/verification_tools.py`): `parse_verification_result` dispatch between single and group results
+- **Export models** (`src/export/models.py`): `MetadataHeader.derive_title` (header precedence, short/long prompt truncation) and `ExportResult.filename_for` (extension and session-id inclusion) — unit and Hypothesis property-based
+- **SSE event formatting** (`src/streaming/sse.py`): unit tests for each `format_*()` function and Hypothesis round-trip property tests
+- **Request DTO validation** (`src/models/api.py`): Hypothesis property-based tests for `ResearchStartRequest` and `ChatRequest`
+- **Invalid request rejection**: Hypothesis-driven HTTP 422 verification for all POST endpoints
+- **Export pipeline** (`src/export/`): unit tests for router and service; Hypothesis property tests for renderers; unit tests for DOCX renderer internals (`_sanitize`, `_core_prop`, `_parse_paragraph`, `_add_formatted_run`, `_process_markdown`) and `render()` output (metadata properties, content presence, Q&A section, determinism, Unicode, control-character stripping); DOCX-specific property tests: valid ZIP/DOCX bytes (Property 10), renderer determinism (Property 11), core properties contain title and session_id (Property 12), Q&A paragraph count invariant (Property 13), title paragraph presence (Property 14)
+- **API endpoint integration**: research SSE stream, chat SSE stream, session CRUD, 404 handling
 
 ## Future Enhancements
 

@@ -186,12 +186,14 @@ class ExtractedClaim(BaseModel):
         description="Surrounding context from the report",
     )
 
-    importance: ImportanceLevel = Field(
-        description="How central this claim is to the report's thesis"
-    )
-
     controversy_level: ControversyLevel = Field(
         description="How likely this claim is to be disputed among experts"
+    )
+
+    # ImportanceLevel must be declared AFTER ControversyLevel for
+    # validate_importance_controversy to work
+    importance: ImportanceLevel = Field(
+        description="How central this claim is to the report's thesis"
     )
 
     verifiability: VerifiabilityLevel = Field(
