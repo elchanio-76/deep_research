@@ -6,7 +6,7 @@ Covers Requirements 13.1–13.6:
   - record_tool_call delegation and no-op when unbound
 """
 
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
 import pytest
 from agents import Usage

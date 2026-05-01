@@ -11,9 +11,7 @@ from __future__ import annotations
 
 from io import BytesIO
 
-import pytest
 from docx import Document
-from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 
 from src.export.models import DocumentParts, MetadataHeader, QAPair
 from src.export.renderers.docx import (

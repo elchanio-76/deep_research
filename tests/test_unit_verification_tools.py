@@ -4,7 +4,6 @@ Unit tests for src/agents/verification_tools.parse_verification_result.
 Covers Requirements 16.1, 16.2, 16.3.
 """
 
-import pytest
 
 from src.agents.verification_tools import parse_verification_result
 from src.models.domain import SingleClaimCitation

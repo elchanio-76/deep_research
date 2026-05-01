@@ -4,7 +4,6 @@ Unit tests for src/agents/qa_agent.py — is_quality_request classifier.
 Covers Requirements 14.1–14.6 and Property 14.
 """
 
-import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 

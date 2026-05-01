@@ -7,10 +7,6 @@ Uses hypothesis @given with @settings(max_examples=100).
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from src.export.models import DocumentParts, MetadataHeader, QAPair
-from src.export.renderers import markdown as markdown_renderer
-from src.export.renderers import pdf as pdf_renderer
-from src.export.renderers import docx as docx_renderer
 
 import uuid as _uuid_module
 
@@ -23,13 +19,19 @@ from unittest.mock import (
     patch as _patch,
 )
 
+from io import BytesIO as _BytesIO
+from docx import Document as _DocxDocument
+
 from src.export.errors import (
     RenderError as _RenderError,
     ReportNotReadyError as _ReportNotReadyError,
     SessionNotFoundError as _SessionNotFoundError,
 )
 from src.export.router import router as _export_router
-
+from src.export.models import DocumentParts, MetadataHeader, QAPair
+from src.export.renderers import markdown as markdown_renderer
+from src.export.renderers import pdf as pdf_renderer
+from src.export.renderers import docx as docx_renderer
 from src.export.models import ExportFormat, ExportResult
 
 # ---------------------------------------------------------------------------
@@ -460,8 +462,6 @@ def test_property_9_no_stack_traces_in_error_responses(exc: Exception) -> None:
 # Validates: Requirements 3.x (DOCX format correctness)
 # ---------------------------------------------------------------------------
 
-from io import BytesIO as _BytesIO
-from docx import Document as _DocxDocument
 
 # python-docx / lxml requires XML-compatible text: no NULL bytes or C0/C1
 # control characters.  The renderer now sanitizes input, so we restrict
