@@ -2,7 +2,7 @@
 
 ## Scope
 
-- Applies to the entire repository (worktree: `export-formats` branch).
+- Applies to the entire repository (worktree: `db-migrations` branch).
 - No nested AGENTS.md files currently exist.
 
 ## Repo Summary
@@ -40,6 +40,7 @@
 - `weasyprint` and `markdown` are used by `src/export/` for PDF rendering (no LLM).
 - `docx` is used by `src/export/` for DOCX rendering (no LLM).
 - `gradio` v6 is used for the thin client UI.
+- `alembic` and `sqlalchemy` are used for database migrations only — SQLAlchemy is not used for runtime queries.
 - Keep dependency additions minimal and update `requirements.txt`.
 
 ## Build / Run Commands
@@ -59,6 +60,28 @@
   - `EXPORT_DIR` — server-side directory for `delivery_mode=url` exports (default: `./exports`).
   - `EXPORT_BASE_URL` — URL prefix returned in export URL responses (default: `/exports`).
 - If adding new integrations, document their env vars in `README.md`.
+
+## Database Migrations
+
+Schema management uses Alembic. The application does **not** execute any DDL at startup — the schema must be applied before the server starts.
+
+- Migration scripts live in `alembic/versions/`.
+- Configuration is in `alembic.ini` (project root). It contains no hardcoded credentials.
+- `alembic/env.py` loads `.env` via `python-dotenv` and reads `DATABASE_URL` at runtime.
+- SQLAlchemy is an Alembic dependency only — all runtime queries continue to use asyncpg directly.
+
+**Common commands:**
+```bash
+alembic upgrade head      # apply all pending migrations (required before first run)
+alembic downgrade -1      # revert the most recent migration
+alembic current           # show the currently applied revision
+alembic history           # list all migrations
+alembic revision -m "..."  # generate a new empty migration script
+```
+
+**Schema drift detection:** `init_db()` checks that `sessions`, `messages`, and `alembic_version` exist after creating the pool. If any are missing it raises `RuntimeError` with instructions to run `alembic upgrade head`.
+
+**Integration tests** create a temporary `<dbname>_test` database, run `alembic upgrade head` against it, and drop it on teardown. They are skipped automatically when `DATABASE_URL` is not set.
 
 ## Lint / Format Commands
 
@@ -199,6 +222,8 @@ src/
 - All source code lives under `src/` — do not add new modules at the repo root.
 - `gradio_app.py` at the repo root is the only UI entrypoint; it must not import from `src/core/` or `src/agents/` directly.
 - `src/export/` is a self-contained package; its router uses only `get_pool` — never `get_research_manager` or any agent module.
+- `alembic/` at the project root contains migration scripts (`versions/`), `env.py`, and `script.py.mako`. Do not add application logic here.
+- `alembic.ini` at the project root is the Alembic configuration file. Do not add database credentials to it.
 - Update `README.md` if new entrypoints or scripts are added.
 
 ## Documentation Updates
