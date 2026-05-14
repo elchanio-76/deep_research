@@ -56,7 +56,7 @@ These are production values committed to source control. Any other deployment of
 
 **Fix:** Read from env vars: `RECIPIENT = os.getenv("EMAIL_RECIPIENT", "")` and `SENDER = os.getenv("EMAIL_SENDER", "")`.
 
-#### 4. Inline DDL migrations in `pool.py`
+#### 4. Inline DDL migrations in `pool.py` [FIXED]
 
 **File:** `src/db/pool.py:28-75`
 
@@ -80,7 +80,7 @@ There is no `max_length`. An adversarial client can submit a multi-megabyte stri
 
 **Fix:** Add `max_length=2000` (or similar reasonable cap) to both fields.
 
-#### 6. Double database fetch in the chat endpoint
+#### 6. Double database fetch in the chat endpoint [FIXED]
 
 **File:** `src/api/chat.py:25-36`
 
@@ -134,7 +134,7 @@ Model identifiers (e.g. `PLANNER_MODEL = "gpt-5"`) and cost rates are compile-ti
 
 Run `ruff check . --fix` to resolve the two auto-fixable issues.
 
-#### 12. No test coverage for core orchestration
+#### 12. No test coverage for core orchestration [FIXED]
 
 `research_manager.py` (~500 lines), the individual agents, and the DB layer (`src/db/`) have no direct test coverage. The integration tests mock `ResearchManager` at the boundary, which is appropriate for API tests but means the orchestration logic itself is untested. This is acceptable for now given the LLM dependency, but unit-testable methods like `_normalize_json_payload`, `calculate_total_cost`, `_compute_brave_flags`, and `_build_qa_pairs` in the export service could have tests without any mocking.
 
