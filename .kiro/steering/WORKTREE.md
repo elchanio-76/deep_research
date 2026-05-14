@@ -4,9 +4,9 @@ inclusion: always
 
 ## Git Worktree & Branch Setup
 
-All work related to the DB migrations feature MUST take place in the dedicated  branch — never on `main`.
+All work related to the bugfix feature MUST take place in the dedicated  branch — never on `main`.
 
-- Branch: `db-migrations`
+- Branch: `bugfix`
 
 Before making any changes, verify the active branch:
 
@@ -14,7 +14,7 @@ Before making any changes, verify the active branch:
 git branch --show-current
 ```
 
-If the output is not `db-migrations`, switch to the correct branch before proceeding:
+If the output is not `bugfix`, switch to the correct branch before proceeding:
 
 ```bash
 git switch db-migrations

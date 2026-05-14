@@ -266,10 +266,13 @@ exceed the remaining budget.
         return choices
 
     async def load_session(
-        self, session_id: str
+        self, session_id: str, prefetched_row: dict | None = None
     ) -> tuple[str, str, list[dict[str, str]], str, str, bool]:
         session_uuid = uuid.UUID(session_id)
-        session_row = await db_sessions.load_session(self.pool, session_uuid)
+        if prefetched_row is not None:
+            session_row = prefetched_row
+        else:
+            session_row = await db_sessions.load_session(self.pool, session_uuid)
         if session_row is None:
             return "", "", [], "", SEARCH_MODE_DEFAULT, False
 
