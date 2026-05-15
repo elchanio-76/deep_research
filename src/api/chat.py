@@ -35,8 +35,8 @@ async def chat(
             status_code=404, detail="No report available for this session"
         )
 
-    # Hydrate ResearchManager state from the loaded session row
-    await rm.load_session(str(body.session_id))
+    # Hydrate ResearchManager state from the already-fetched session row
+    await rm.load_session(str(body.session_id), prefetched_row=session)
 
     history = [(msg.role, msg.content) for msg in body.history]
 

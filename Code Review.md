@@ -1,23 +1,25 @@
 # Code Review — Deep Research Assistant
 
-Review Date: 2026-04-30
+Review Date: 2026-05-14
 
 ## Summary
 
-The project has matured significantly since the last review. A proper FastAPI REST backend replaces the former single-file Gradio server, a PostgreSQL persistence layer has been added, and a comprehensive test suite now exists. The old critical-severity issue (API keys committed to version control) is resolved — `.env` is gitignored. The new issues below are architectural and maintainability concerns appropriate to the project's current state.
+The fixes from the previous review are mostly verified. The repository now has Alembic migrations, the old `citation_agent.py` file is gone, request DTOs cap research/chat input length, the chat endpoint avoids the double session fetch, Ruff is clean, and the full test suite passes when the virtual environment is activated.
+
+The remaining concerns are mostly production-readiness issues: request-scoped state is still stored on a shared `ResearchManager`, email delivery is still enabled by default with real address fallbacks, and expensive research requests have no admission control. A few cleanup items remain in docs/config and test configuration.
 
 ---
 
 ## Strengths
 
-1. **Clean layered architecture** — `src/api/`, `src/core/`, `src/agents/`, `src/models/`, `src/db/`, `src/export/`, `src/streaming/` each own a clear slice of responsibility.
-2. **Strong Pydantic v2 modeling** — domain models in `domain.py` use `Field` constraints, `field_validator`, `ConfigDict`, and cross-field validation. API DTOs in `api.py` add pattern-validated enums and `min_length` guards at the boundary.
-3. **Substantial test suite** — 9 files, ~2 500 lines, covering API integration, export integration, SSE formatting, property-based (Hypothesis) renderer tests, and DTO validation. Significant improvement over the previous review.
-4. **Stateless export pipeline** — `src/export/service.py` receives the pool as a parameter and invokes no LLM. Renderers are pure functions. Error hierarchy (`SessionNotFoundError`, `ReportNotReadyError`, `RenderError`) maps cleanly to HTTP status codes in the router.
-5. **Safe SQL** — all DB queries in `src/db/` use asyncpg parameterized statements (`$1`, `$2`, …). No string interpolation into SQL.
-6. **ContextVar usage tracking** — `src/core/usage_tracker.py` uses a `ContextVar` so per-request token tracking is coroutine-safe across concurrent async tasks.
-7. **SSE disconnect detection** — `research_event_stream` and `chat_event_stream` check `request.is_disconnected()` on each iteration, preventing runaway agent chains after the client drops.
-8. **AGENTS.md** — thorough project documentation for context, conventions, and commands.
+1. **Layered architecture remains clear** — API routes, orchestration, DB access, agents, streaming, export, and models are separated into focused packages.
+2. **Alembic migration flow is now in place** — startup no longer executes DDL; `init_db()` verifies expected tables and `alembic_version` before serving requests.
+3. **API validation improved** — `ResearchStartRequest.query` and `ChatRequest.message` now use `max_length=2000`.
+4. **Chat endpoint DB fix is verified** — `src/api/chat.py` loads the session once and passes the prefetched row into `ResearchManager.load_session()`.
+5. **Export coverage is strong** — Markdown, PDF, DOCX, router, service, and renderer behavior are covered by unit, integration, and property-based tests.
+6. **Lint and tests are in good shape** — `ruff check .` passes and the activated-venv pytest run reports `371 passed`.
+7. **Safe SQL is preserved** — runtime DB queries continue to use asyncpg parameters rather than SQL string interpolation.
+8. **`.env` is gitignored** — the earlier committed-secret class of issue remains resolved.
 
 ---
 
@@ -25,128 +27,141 @@ The project has matured significantly since the last review. A proper FastAPI RE
 
 ### High Priority
 
-#### 1. Shared mutable `ResearchManager` is not concurrency-safe *(known single-user limitation)*
+#### 1. Shared mutable `ResearchManager` is still not concurrency-safe
 
-**File:** `src/api/main.py:22`, `src/api/dependencies.py:11`
+**Files:** `src/api/main.py:22`, `src/core/research_manager.py:49-61`, `src/core/research_manager.py:281-303`, `src/core/research_manager.py:358-392`
 
-A single `ResearchManager` instance is stored in `app.state`. The class has mutable instance state: `self.report`, `self.search_results`, `self.last_query`, `self.current_session_id`, `self.session_usage`, etc. Two concurrent `/api/research/start` requests (e.g. two browser tabs) would corrupt each other's state — `reset_session_state()` at the start of `run()` wipes the other in-flight request's counters, and both coroutines then race on `self.current_session_id`, causing A's report to be persisted under B's session.
+The application still stores one `ResearchManager` instance in `app.state`, and that instance still owns mutable request/session fields: `report`, `search_results`, `last_query`, `session_usage`, `current_session_id`, `search_mode`, and `cost_effective_search`.
 
-This does not affect the current single-user sequential use case. It is a pre-requisite to address before adding multi-user support.
+Two concurrent research or chat streams can overwrite each other's state. For example, one `/api/research/start` request can reset or replace `current_session_id` while another request is still writing messages or updating cost summaries. The chat endpoint also hydrates that same shared object before streaming, so concurrent chats against different sessions can race on `self.report`, `self.last_query`, and `self.session_usage`.
 
-**Fix:** Move the mutable fields out of instance state and into local variables scoped to each `run()` / `chat()` invocation, leaving `ResearchManager` holding only the `pool`.
+This is still acceptable only for a single-user, one-request-at-a-time workflow. It is the main blocker for multi-user or multi-tab use.
 
-#### 2. `citation_agent.py` is dead code [FIXED]
+**Fix:** Make `ResearchManager` request-scoped or move mutable session state into a per-run context object passed through `run()`, `chat()`, `_insert_message()`, `_update_session()`, search, writing, and cost tracking. Keep the shared object, if any, limited to immutable dependencies such as the DB pool.
 
-**File:** `src/agents/citation_agent.py`
+#### 2. Email delivery is still enabled by default with real address fallbacks
 
-The file defines `citation_agent` and `citation_agent_tool` but is not imported anywhere in `src/` or `tests/`. Its functionality was superseded by `verification_tools.py`. It adds ~140 lines of confusion and maintenance burden.
+**Files:** `src/config/settings.py:29-30`, `src/core/research_manager.py:450-451`, `src/agents/email_agent.py:16-32`
 
-**Fix:** Delete the file.
-
-#### 3. Hardcoded email config in `settings.py` [FIXED]
-
-**File:** `src/config/settings.py:29-30`
+The previous review marked hardcoded email config as fixed, but the current code only made the values env-overridable:
 
 ```python
-RECIPIENT = "lchanio@echyperion.com"
-SENDER = "proklos+ses@gmail.com"
+RECIPIENT = os.getenv("EMAIL_RECIPIENT", "lchanio@echyperion.com")
+SENDER = os.getenv("EMAIL_SENDER", "proklos+ses@gmail.com")
 ```
 
-These are production values committed to source control. Any other deployment of this project will send email to/from the original developer's addresses unless the code is edited.
+If a deployment forgets to set `EMAIL_RECIPIENT` or `EMAIL_SENDER`, research completion still invokes `send_email()` unconditionally and attempts SES delivery using those real fallback addresses. That is surprising behavior for any environment other than the original developer's.
 
-**Fix:** Read from env vars: `RECIPIENT = os.getenv("EMAIL_RECIPIENT", "")` and `SENDER = os.getenv("EMAIL_SENDER", "")`.
+There is also no explicit `EMAIL_ENABLED` gate, and `ResearchManager.send_email()` prints "Email sent" after the agent run regardless of whether the underlying SES tool returned `{"status": "error"}`.
 
-#### 4. Inline DDL migrations in `pool.py`
-
-**File:** `src/db/pool.py:28-75`
-
-`init_db()` runs `CREATE TABLE IF NOT EXISTS` plus several `ALTER TABLE ADD COLUMN IF NOT EXISTS` statements on every application start. This works for early-stage development but is not a migration system: there is no ordering, no rollback, no record of what has been applied, and adding a new column requires inserting another `ALTER TABLE` block into this function. If two server instances start simultaneously, the DDL race is benign now (IF NOT EXISTS) but will break if a future migration is not idempotent.
-
-**Recommendation:** Introduce Alembic (or a lightweight SQL migration runner like `yoyo`) even at low complexity. This is not an immediate blocker, but the current approach does not scale beyond a few more schema changes.
+**Fix:** Default `RECIPIENT` and `SENDER` to empty strings, add an explicit `EMAIL_ENABLED=false` default, skip email delivery unless enabled and fully configured, and surface failed delivery as a warning/progress event rather than an unconditional success message.
 
 ---
 
 ### Medium Priority
 
-#### 5. No upper bound on query length [FIXED]
+#### 3. Expensive research endpoint has no rate limit or admission control
 
-**File:** `src/models/api.py:11`
+**File:** `src/api/research.py:12-23`
 
-```python
-query: str = Field(..., min_length=1, description="Research query")
-```
+`POST /api/research/start` immediately starts a streaming research pipeline. Each accepted request can trigger planning, multiple searches, report writing, fact checking, report editing, title generation, email generation, and external tool calls. The endpoint has input length validation, but no per-client throttling, queueing, authentication, maximum concurrent job count, or cancellation cleanup beyond disconnect checks in the stream adapter.
 
-There is no `max_length`. An adversarial client can submit a multi-megabyte string that propagates through the entire agent pipeline, consuming tokens and potentially causing OOM or timeout issues. `message` in `ChatRequest` has the same gap.
+This is a cost and availability risk if the API is exposed beyond trusted local use.
 
-**Fix:** Add `max_length=2000` (or similar reasonable cap) to both fields.
+**Fix:** Add at least a simple concurrency limit for active research jobs, and use authentication plus per-client rate limiting before public or team deployment. Return `429` or `503` when capacity is exhausted.
 
-#### 6. Double database fetch in the chat endpoint
+#### 4. Pipeline logging still uses `print()` throughout long-running workflows
 
-**File:** `src/api/chat.py:25-36`
+**Files:** `src/core/research_manager.py:369-374`, `src/core/research_manager.py:510-515`, `src/agents/verification_tools.py`, `src/agents/email_agent.py:29-32`
 
-The handler calls `db_sessions.load_session(pool, body.session_id)` to validate the session exists, then immediately calls `rm.load_session(str(body.session_id))` which calls `db_sessions.load_session` a second time internally. This is an unnecessary round-trip on every chat message.
+The codebase still emits progress, trace URLs, errors, and cost summaries through `print()`. This matches the current project style, but it limits production observability: there are no log levels, no structured context, no request/session correlation, and no easy way to suppress verbose output while keeping warnings and errors.
 
-**Fix:** Pass the already-fetched row to `load_session`, or combine the guard and hydration into a single DB call.
+**Fix:** Introduce module-level `logging.getLogger(__name__)` loggers. Keep user-facing SSE progress yields separate from operational logs.
 
-#### 7. Unused public method `search()` [FIXED]
+#### 5. Model names and cost rates remain compile-time constants
 
-**File:** `src/core/research_manager.py` (near line 470)
+**File:** `src/config/settings.py:14-26`, `src/config/settings.py:64-79`
 
-The standalone `search(item)` method is never called — all search routing now goes through `_search_with_routing()` and `perform_searches()`. It is a public method on the class, so it creates a false impression of the API surface.
+All model names and token/tool cost assumptions are hardcoded in `settings.py`. That makes model rollout, emergency fallback, and pricing updates require a code change. Cost summaries can also silently become stale when provider pricing changes.
 
-**Fix:** Delete the method.
-
-#### 8. `print()` used for all pipeline logging
-
-**File:** `src/core/research_manager.py` (31 occurrences), `src/agents/` (18 more)
-
-Progress, cost summaries, and error context are emitted via `print()`. In production, these go to stdout with no level, no timestamp, and no structured format. There is no way to suppress debug noise or filter by severity.
-
-**Recommendation:** Replace with `import logging; logger = logging.getLogger(__name__)`. Use `logger.info` for progress and `logger.warning`/`logger.error` for failures. This is noted in AGENTS.md as intentional ("existing style") but worth revisiting before any production deployment.
-
-#### 9. `MODEL_COSTS` and model names are not env-overridable
-
-**File:** `src/config/settings.py:17-26, 58-63`
-
-Model identifiers (e.g. `PLANNER_MODEL = "gpt-5"`) and cost rates are compile-time constants. When OpenAI renames or retires a model, every model constant requires a code change and redeploy. Cost rates go stale immediately when pricing changes.
-
-**Recommendation:** Read model names from env vars with sensible defaults. Model costs are harder — consider either accepting staleness and noting it in a comment, or fetching from a pricing API at startup.
+**Fix:** Read model names from env vars with current values as defaults. For costs, either move rates into env/config with a "last reviewed" comment or clearly label cost summaries as estimates.
 
 ---
 
 ### Low Priority
 
-#### 10. One failing property-based test [FIXED]
+#### 6. Stale citation references remain after deleting `citation_agent.py`
 
-**File:** `tests/test_property_export_renderers.py:270`
+**Files:** `README.md:65`, `src/config/settings.py:22`
 
-`test_property_6_output_filename_pattern` asserts that filenames end with `.md` or `.pdf`, but `ExportFormat` now has three values (`markdown`, `pdf`, `docx`). Hypothesis generates `docx` inputs and the test assertion fails with `expected "report-<id>.pdf", got "report-<id>.docx"`.
+The dead `src/agents/citation_agent.py` file was removed, but the README tree still lists it and `CITATION_MODEL` remains as an unused setting. This is small, but it makes the documented module map and config surface less trustworthy.
 
-**Fix:** Update the `expected_ext` logic to cover all three formats.
+**Fix:** Remove the README entry and delete `CITATION_MODEL` unless a new citation module is planned.
 
-#### 11. Ruff linting errors (3 sources) [FIXED]
+#### 7. Markdown export reports PDF rendering failures
 
-**Files:** `src/db/sessions.py:1`, `tests/test_api_integration.py:189`, `tests/test_property_export_renderers.py:260-363`
+**File:** `src/export/router.py:104-105`
 
-- `src/db/sessions.py` — unused `import json` (F401, auto-fixable)
-- `tests/test_api_integration.py:189` — f-string with no placeholders (F541, auto-fixable)
-- `tests/test_property_export_renderers.py` — 10 E402 errors (module-level imports not at top of file, likely from late-binding to avoid import side effects, but can be restructured)
+The Markdown export endpoint catches `RenderError` and returns `"PDF rendering failed"`. This is a copy/paste error from the PDF route. It only affects an error response path, but it would mislead API clients and debugging.
 
-Run `ruff check . --fix` to resolve the two auto-fixable issues.
+**Fix:** Change the Markdown route message to `"Markdown rendering failed"` or a generic `"Export rendering failed"`.
 
-#### 12. No test coverage for core orchestration
+#### 8. Pytest integration marker is not registered
 
-`research_manager.py` (~500 lines), the individual agents, and the DB layer (`src/db/`) have no direct test coverage. The integration tests mock `ResearchManager` at the boundary, which is appropriate for API tests but means the orchestration logic itself is untested. This is acceptable for now given the LLM dependency, but unit-testable methods like `_normalize_json_payload`, `calculate_total_cost`, `_compute_brave_flags`, and `_build_qa_pairs` in the export service could have tests without any mocking.
+**File:** `tests/integration/test_migrations.py:136`, `tests/integration/test_migrations.py:376`, `tests/integration/test_migrations.py:545`, `tests/integration/test_migrations.py:691`
+
+The full test run passes, but pytest emits `PytestUnknownMarkWarning` for `@pytest.mark.integration` because there is no pytest config registering the marker. This adds warning noise and can break stricter CI configurations that treat warnings as errors.
+
+**Fix:** Add a minimal `pytest.ini` or equivalent config with:
+
+```ini
+[pytest]
+markers =
+    integration: tests that require PostgreSQL/Alembic integration resources
+```
+
+---
+
+## Verified Previous Issues
+
+| Previous issue | Current status |
+|---|---|
+| Shared mutable `ResearchManager` | Still open |
+| `citation_agent.py` dead code | Fixed, with stale README/config cleanup remaining |
+| Hardcoded email config | Partially fixed; env overrides added, unsafe real fallbacks remain |
+| Inline DDL migrations in `pool.py` | Fixed with Alembic and schema drift checks |
+| No upper bound on query/message length | Fixed |
+| Double database fetch in chat endpoint | Fixed |
+| Unused public `search()` method | Fixed |
+| `print()` pipeline logging | Still open |
+| Model names/costs not env-overridable | Still open |
+| DOCX property test failure | Fixed |
+| Ruff linting errors | Fixed |
+| No direct core orchestration coverage | Fixed for pure `ResearchManager` helpers; LLM-heavy orchestration remains mostly integration/manual territory |
 
 ---
 
 ## Test Suite Results
 
-```
-1 failed, 120 passed  (test_property_6_output_filename_pattern)
+Commands run:
+
+```bash
+.venv/bin/ruff check .
+source .venv/bin/activate && python -m pytest
 ```
 
-All failures are in the test code, not the production code.
+Results:
+
+```text
+Ruff: All checks passed
+Pytest: 371 passed, 5 warnings in 14.31s
+```
+
+Notes:
+
+- Running `.venv/bin/python -m pytest` without activating the virtualenv caused migration tests to fail because subprocess calls to `alembic` could not find `.venv/bin/alembic` on `PATH`.
+- Activating the virtualenv first resolved that issue.
+- The remaining warnings are `PytestUnknownMarkWarning` for the unregistered `integration` marker plus one asyncio event-loop deprecation warning in the migration fixture.
 
 ---
 
@@ -156,9 +171,10 @@ All failures are in the test code, not the production code.
 |---|---|
 | `.env` in `.gitignore` | ✓ Resolved |
 | Parameterized SQL queries | ✓ Clean |
-| API input validation (type, min_length, pattern) | ✓ Present |
-| No query `max_length` cap | ✗ Missing |
-| Hardcoded email addresses in source | ✗ Present |
-| No rate limiting on research endpoint | ✗ Missing |
-
-The previous critical issue (credentials in VCS) is resolved. The remaining security items are medium-severity.
+| Alembic-managed schema | ✓ Present |
+| API input validation with max length caps | ✓ Present |
+| Hardcoded committed secrets | ✓ No tracked `.env` found |
+| Hardcoded email fallback addresses | ✗ Present |
+| Email delivery opt-in gate | ✗ Missing |
+| Rate limiting / admission control on research endpoint | ✗ Missing |
+| Shared request/session state isolation | ✗ Missing |

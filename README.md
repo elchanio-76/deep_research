@@ -293,6 +293,7 @@ python -m pytest tests/test_unit_docx_renderer.py           # DOCX renderer unit
 python -m pytest tests/test_unit_sse_formatting.py           # SSE formatting unit tests
 python -m pytest tests/test_property_sse_roundtrip.py        # SSE round-trip property tests
 python -m pytest tests/test_property_dto_validation.py       # DTO validation property tests
+python -m pytest tests/test_property_chat_double_db_call.py  # chat double DB call property tests
 python -m pytest tests/test_api_integration.py               # API integration tests
 python -m pytest tests/ -k "property" -v                     # all property-based tests
 ```
@@ -307,6 +308,7 @@ Tests cover:
 - **Export models** (`src/export/models.py`): `MetadataHeader.derive_title` (header precedence, short/long prompt truncation) and `ExportResult.filename_for` (extension and session-id inclusion) — unit and Hypothesis property-based
 - **SSE event formatting** (`src/streaming/sse.py`): unit tests for each `format_*()` function and Hypothesis round-trip property tests
 - **Request DTO validation** (`src/models/api.py`): Hypothesis property-based tests for `ResearchStartRequest` and `ChatRequest`
+- **Chat endpoint DB efficiency** (`src/api/chat.py`): Hypothesis property-based tests verifying `db_sessions.load_session` is called exactly once per valid `POST /chat` request (bug condition check) and that all observable HTTP behavior and `ResearchManager` hydration state is preserved after the fix (preservation check)
 - **Invalid request rejection**: Hypothesis-driven HTTP 422 verification for all POST endpoints
 - **Export pipeline** (`src/export/`): unit tests for router and service; Hypothesis property tests for renderers; unit tests for DOCX renderer internals (`_sanitize`, `_core_prop`, `_parse_paragraph`, `_add_formatted_run`, `_process_markdown`) and `render()` output (metadata properties, content presence, Q&A section, determinism, Unicode, control-character stripping); DOCX-specific property tests: valid ZIP/DOCX bytes (Property 10), renderer determinism (Property 11), core properties contain title and session_id (Property 12), Q&A paragraph count invariant (Property 13), title paragraph presence (Property 14)
 - **API endpoint integration**: research SSE stream, chat SSE stream, session CRUD, 404 handling
