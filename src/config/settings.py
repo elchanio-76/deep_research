@@ -28,6 +28,7 @@ VERIFICATION_TOOL_MODEL = "gpt-4o-mini"
 # E-mail config
 RECIPIENT = os.getenv("EMAIL_RECIPIENT", "")
 SENDER = os.getenv("EMAIL_SENDER", "")
+EMAIL_ENABLED = os.getenv("EMAIL_ENABLED", "false").lower() == "true"
 DEFAULT_AWS_REGION = "eu-north-1"
 
 # Database config
