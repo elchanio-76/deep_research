@@ -198,7 +198,7 @@ def test_markdown_500_with_render_error_shape(client):
         resp = client.get(f"/api/export/{FAKE_SESSION_ID}/markdown")
     assert resp.status_code == 500
     body = resp.json()
-    assert body["detail"] == "PDF rendering failed"
+    assert body["detail"] == "Markdown rendering failed"
     assert body["reason"] == "render boom"
 
 

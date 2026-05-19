@@ -16,6 +16,15 @@ from src.config.settings import (
 def send_email(subject: str, html_body: str) -> Dict[str, str]:
     """Send an email with the given subject and HTML body via SES."""
     region_name = os.environ.get("AWS_DEFAULT_REGION", DEFAULT_AWS_REGION)
+    if SENDER == "" or RECIPIENT == "":
+        return {
+            "status": "error",
+            "message": (
+                "SENDER and RECIPIENT must be set to send e-mail"
+                f" (current SENDER={SENDER}, RECIPIENT={RECIPIENT})"
+            ),
+        }
+
     try:
         client = boto3.client("ses", region_name=region_name)
         response = client.send_email(
@@ -37,7 +46,9 @@ INSTRUCTIONS = """You are able to send a nicely formatted HTML email based on a 
 You will be provided with a detailed report. You should use your tool to send one email, providing the
 report converted into clean, well presented HTML with an appropriate subject line.
 You can edit the text for clarity and presentation purposes, 
-but do not remove any information, sections or citations present in the original text."""
+but do not remove any information, sections or citations present in the original text.
+**IMPORTANT:** If your tool returns an error that the SENDER or RECIPIENT is not set, **DO NOT ATTEMPT** to send
+the e-mail again, just mention the error in your response."""
 
 email_agent = Agent(
     name="Email agent",

@@ -102,7 +102,7 @@ async def export_markdown(
     except ReportNotReadyError as exc:
         return _error_json(422, str(exc))
     except RenderError as exc:
-        return _error_json(500, "PDF rendering failed", reason=exc.reason)
+        return _error_json(500, "Markdown rendering failed", reason=exc.reason)
     except asyncpg.PostgresError as exc:
         return _error_json(500, f"Database error: {type(exc).__name__}")
 

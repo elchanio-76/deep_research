@@ -61,8 +61,7 @@ src/
 │   ├── verification_tools.py
 │   ├── email_agent.py
 │   ├── session_title_agent.py
-│   ├── adaptive_search_planner.py
-│   └── citation_agent.py
+│   └── adaptive_search_planner.py
 ├── models/
 │   ├── domain.py        # Pydantic domain models
 │   └── api.py           # Request/Response DTOs + SSE event models
@@ -99,9 +98,9 @@ src/
    OPENAI_API_KEY=your_openai_api_key
    DATABASE_URL=postgresql://user:password@localhost:5432/deep_research
    BRAVE_API_KEY=your_brave_api_key        # optional: cost-effective search
-   SENDGRID_API_KEY=your_sendgrid_key      # optional: email reports
-   FROM_EMAIL=you@example.com              # optional: email sender
-   TO_EMAIL=recipient@example.com          # optional: email recipient
+   EMAIL_ENABLED=true                      # optional: set to "true" to enable email delivery (default: false)
+   EMAIL_RECIPIENT=recipient@example.com   # optional: email reports recipient (required when EMAIL_ENABLED=true)
+   EMAIL_SENDER=sender@example.com         # optional: SES verified sender address (required when EMAIL_ENABLED=true)
    EXPORT_DIR=./exports                    # optional: server-side export directory (default: ./exports)
    EXPORT_BASE_URL=/exports                # optional: URL prefix for exported files (default: /exports)
    ```

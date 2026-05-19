@@ -448,7 +448,8 @@ exceed the remaining budget.
             )
 
             yield "Sending email...\n"
-            await self.send_email(final_report)
+            status = await self.send_email(final_report)
+            yield status
 
             yield "Research complete!\n"
             yield f"\n---\n## Final Report\n\n{final_report.markdown_report}"
@@ -704,10 +705,30 @@ exceed the remaining budget.
         print(f"Total cost: {self.calculate_total_cost()}")
         return result.final_output_as(WriterOutput)
 
-    async def send_email(self, report: FinalReportData) -> None:
-        """Send the final report via email."""
+    async def send_email(self, report: FinalReportData) -> str:
+        """
+        Attempt to send the final report via email.
+
+        Returns a single SSE-ready status string for the caller to yield.
+        Skips silently (with a descriptive message) when EMAIL_ENABLED is False
+        or when SENDER / RECIPIENT are not configured.
+        """
+        from src.config.settings import EMAIL_ENABLED, RECIPIENT, SENDER
+
+        if not EMAIL_ENABLED:
+            return "Email skipped: EMAIL_ENABLED is not set.\n"
+
+        if not SENDER or not RECIPIENT:
+            return "Email skipped: SENDER or RECIPIENT not configured.\n"
+
         print("Writing email...")
         result = await Runner.run(email_agent, report.markdown_report)
         self.update_usage_stats("email_agent", result.context_wrapper.usage)
-        print("Email sent")
         print(f"Total cost: {self.calculate_total_cost()}")
+
+        # Inspect the agent's final output for the tool result status
+        output_text = str(result.final_output)
+        if "error" in output_text.lower():
+            return "Warning: email delivery failed — check SES configuration.\n"
+
+        return "Email sent.\n"
