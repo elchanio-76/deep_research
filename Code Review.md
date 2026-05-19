@@ -90,7 +90,7 @@ All model names and token/tool cost assumptions are hardcoded in `settings.py`. 
 
 ### Low Priority
 
-#### 6. Stale citation references remain after deleting `citation_agent.py`
+#### 6. Stale citation references remain after deleting `citation_agent.py` [FIXED]
 
 **Files:** `README.md:65`, `src/config/settings.py:22`
 
@@ -98,7 +98,7 @@ The dead `src/agents/citation_agent.py` file was removed, but the README tree st
 
 **Fix:** Remove the README entry and delete `CITATION_MODEL` unless a new citation module is planned.
 
-#### 7. Markdown export reports PDF rendering failures
+#### 7. Markdown export reports PDF rendering failures [FIXED]
 
 **File:** `src/export/router.py:104-105`
 
@@ -106,7 +106,7 @@ The Markdown export endpoint catches `RenderError` and returns `"PDF rendering f
 
 **Fix:** Change the Markdown route message to `"Markdown rendering failed"` or a generic `"Export rendering failed"`.
 
-#### 8. Pytest integration marker is not registered
+#### 8. Pytest integration marker is not registered [FIXED]
 
 **File:** `tests/integration/test_migrations.py:136`, `tests/integration/test_migrations.py:376`, `tests/integration/test_migrations.py:545`, `tests/integration/test_migrations.py:691`
 

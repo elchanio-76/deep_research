@@ -61,8 +61,7 @@ src/
 │   ├── verification_tools.py
 │   ├── email_agent.py
 │   ├── session_title_agent.py
-│   ├── adaptive_search_planner.py
-│   └── citation_agent.py
+│   └── adaptive_search_planner.py
 ├── models/
 │   ├── domain.py        # Pydantic domain models
 │   └── api.py           # Request/Response DTOs + SSE event models

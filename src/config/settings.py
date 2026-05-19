@@ -19,7 +19,7 @@ SEARCH_MODEL = "gpt-4o-mini"
 WRITER_MODEL = "gpt-5-mini"
 QA_MODEL = "gpt-5-mini"
 CLAIM_EXTRACTOR_MODEL = "gpt-5-mini"
-CITATION_MODEL = "gpt-5-mini"
+
 EDITOR_MODEL = "gpt-5-mini"
 EMAIL_MODEL = "gpt-4o-mini"
 SESSION_TITLE_MODEL = "gpt-5-mini"
