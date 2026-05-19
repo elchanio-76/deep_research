@@ -39,7 +39,7 @@ This is still acceptable only for a single-user, one-request-at-a-time workflow.
 
 **Fix:** Make `ResearchManager` request-scoped or move mutable session state into a per-run context object passed through `run()`, `chat()`, `_insert_message()`, `_update_session()`, search, writing, and cost tracking. Keep the shared object, if any, limited to immutable dependencies such as the DB pool.
 
-#### 2. Email delivery is still enabled by default with real address fallbacks
+#### 2. Email delivery is still enabled by default with real address fallbacks [FIXED]
 
 **Files:** `src/config/settings.py:29-30`, `src/core/research_manager.py:450-451`, `src/agents/email_agent.py:16-32`
 
@@ -175,6 +175,6 @@ Notes:
 | API input validation with max length caps | ✓ Present |
 | Hardcoded committed secrets | ✓ No tracked `.env` found |
 | Hardcoded email fallback addresses | ✗ Present |
-| Email delivery opt-in gate | ✗ Missing |
+| Email delivery opt-in gate | ✗ Present |
 | Rate limiting / admission control on research endpoint | ✗ Missing |
 | Shared request/session state isolation | ✗ Missing |
