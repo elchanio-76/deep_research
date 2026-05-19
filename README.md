@@ -98,8 +98,9 @@ src/
    OPENAI_API_KEY=your_openai_api_key
    DATABASE_URL=postgresql://user:password@localhost:5432/deep_research
    BRAVE_API_KEY=your_brave_api_key        # optional: cost-effective search
-   EMAIL_RECIPIENT=recipient@example.com   # optional: email reports recipient (leave unset to disable email)
-   EMAIL_SENDER=sender@example.com         # optional: SES verified sender address (leave unset to disable email)
+   EMAIL_ENABLED=true                      # optional: set to "true" to enable email delivery (default: false)
+   EMAIL_RECIPIENT=recipient@example.com   # optional: email reports recipient (required when EMAIL_ENABLED=true)
+   EMAIL_SENDER=sender@example.com         # optional: SES verified sender address (required when EMAIL_ENABLED=true)
    EXPORT_DIR=./exports                    # optional: server-side export directory (default: ./exports)
    EXPORT_BASE_URL=/exports                # optional: URL prefix for exported files (default: /exports)
    ```
